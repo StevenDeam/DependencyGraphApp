@@ -1,4 +1,5 @@
 using DependencyDashboard.Core;
+using DependencyDashboard.Core.Graph;
 using DependencyDashboard.Core.Models;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
@@ -30,6 +31,8 @@ public class MainViewModel : ViewModelBase
     private double _panX;
     private double _panY;
     private string? _loadedFilePath;
+    private GraphLayoutMode _layoutMode = GraphLayoutMode.Bracket;
+    private ObservableCollection<SwimLaneViewModel> _swimLanes = new();
 
     public MainViewModel()
     {
@@ -66,6 +69,7 @@ public class MainViewModel : ViewModelBase
     public ObservableCollection<FilterItemViewModel> StatusFilters { get; }
     public ObservableCollection<FilterItemViewModel> HealthFilters { get; }
     public ObservableCollection<MilestoneRowViewModel> MilestoneItems { get; }
+    public ObservableCollection<SwimLaneViewModel> SwimLanes => _swimLanes;
 
     public ICommand OpenCommand { get; }
     public ICommand ReloadCommand { get; }
@@ -180,6 +184,40 @@ public class MainViewModel : ViewModelBase
     public string WindowTitle => _loadedFilePath != null
         ? $"Dependency Dashboard - {Path.GetFileName(_loadedFilePath)}"
         : "Dependency Dashboard";
+
+    public GraphLayoutMode LayoutMode
+    {
+        get => _layoutMode;
+        set
+        {
+            if (SetProperty(ref _layoutMode, value))
+            {
+                OnPropertyChanged(nameof(IsBracketMode));
+                OnPropertyChanged(nameof(IsSwimlaneMode));
+                ApplyFilters();
+            }
+        }
+    }
+
+    public bool IsBracketMode
+    {
+        get => _layoutMode == GraphLayoutMode.Bracket;
+        set
+        {
+            if (value) LayoutMode = GraphLayoutMode.Bracket;
+        }
+    }
+
+    public bool IsSwimlaneMode
+    {
+        get => _layoutMode == GraphLayoutMode.Swimlane;
+        set
+        {
+            if (value) LayoutMode = GraphLayoutMode.Swimlane;
+        }
+    }
+
+    public WorkItemService Service => _service;
 
     private void InitializeFilters()
     {
@@ -469,7 +507,7 @@ public class MainViewModel : ViewModelBase
         if (FilteredWorkItems.Count > 0)
         {
             var filteredModels = FilteredWorkItems.Select(vm => vm.Model);
-            _service.RecomputeLayout(_collection, filteredModels);
+            _service.RecomputeLayout(_collection, filteredModels, _layoutMode);
 
             foreach (var vm in FilteredWorkItems)
             {
@@ -478,6 +516,16 @@ public class MainViewModel : ViewModelBase
             foreach (var edge in FilteredEdges)
             {
                 edge.Refresh();
+            }
+
+            // Build swimlane view models if in swimlane mode
+            _swimLanes.Clear();
+            if (_layoutMode == GraphLayoutMode.Swimlane)
+            {
+                foreach (var lane in _service.GetSwimlanes())
+                {
+                    _swimLanes.Add(new SwimLaneViewModel(lane, _service));
+                }
             }
         }
     }

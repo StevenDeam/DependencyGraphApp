@@ -15,7 +15,8 @@ public class WorkItemService
     private readonly ReferenceValidator _referenceValidator;
     private readonly CycleDetector _cycleDetector;
     private readonly ProgressCalculator _progressCalculator;
-    private readonly GraphLayoutEngine _layoutEngine;
+    private readonly GraphLayoutEngine _bracketLayoutEngine;
+    private readonly SwimlaneLayoutEngine _swimlaneLayoutEngine;
 
     public WorkItemService()
     {
@@ -23,13 +24,16 @@ public class WorkItemService
         _referenceValidator = new ReferenceValidator();
         _cycleDetector = new CycleDetector();
         _progressCalculator = new ProgressCalculator();
-        _layoutEngine = new GraphLayoutEngine();
+        _bracketLayoutEngine = new GraphLayoutEngine();
+        _swimlaneLayoutEngine = new SwimlaneLayoutEngine();
     }
+
+    public SwimlaneLayoutEngine SwimlaneLayoutEngine => _swimlaneLayoutEngine;
 
     /// <summary>
     /// Loads a CSV file, validates it, computes all derived values, and layouts the graph.
     /// </summary>
-    public WorkItemCollection LoadAndProcess(string filePath)
+    public WorkItemCollection LoadAndProcess(string filePath, GraphLayoutMode layoutMode = GraphLayoutMode.Bracket)
     {
         // Step 1: Parse CSV
         var collection = _csvLoader.Load(filePath);
@@ -55,8 +59,8 @@ public class WorkItemService
         // Step 4: Compute progress, status, health
         _progressCalculator.ComputeAll(collection);
 
-        // Step 5: Compute graph layout
-        _layoutEngine.ComputeLayout(collection);
+        // Step 5: Compute graph layout based on mode
+        ComputeLayout(collection, collection.Items, layoutMode);
 
         return collection;
     }
@@ -64,9 +68,22 @@ public class WorkItemService
     /// <summary>
     /// Recomputes layout for a filtered subset of items.
     /// </summary>
-    public void RecomputeLayout(WorkItemCollection collection, IEnumerable<WorkItem> filteredItems)
+    public void RecomputeLayout(WorkItemCollection collection, IEnumerable<WorkItem> filteredItems,
+        GraphLayoutMode layoutMode = GraphLayoutMode.Bracket)
     {
-        _layoutEngine.ComputeLayout(collection, filteredItems);
+        ComputeLayout(collection, filteredItems, layoutMode);
+    }
+
+    private void ComputeLayout(WorkItemCollection collection, IEnumerable<WorkItem> items, GraphLayoutMode layoutMode)
+    {
+        if (layoutMode == GraphLayoutMode.Swimlane)
+        {
+            _swimlaneLayoutEngine.ComputeLayout(collection, items);
+        }
+        else
+        {
+            _bracketLayoutEngine.ComputeLayout(collection, items);
+        }
     }
 
     /// <summary>
@@ -94,10 +111,34 @@ public class WorkItemService
     }
 
     /// <summary>
-    /// Gets graph layout bounds.
+    /// Gets graph layout bounds for bracket mode.
     /// </summary>
     public (double Width, double Height) GetGraphBounds(IEnumerable<WorkItem> items)
     {
-        return _layoutEngine.GetBounds(items);
+        return _bracketLayoutEngine.GetBounds(items);
+    }
+
+    /// <summary>
+    /// Gets graph layout bounds for swimlane mode.
+    /// </summary>
+    public (double Width, double Height) GetSwimlaneBounds()
+    {
+        return _swimlaneLayoutEngine.GetBounds();
+    }
+
+    /// <summary>
+    /// Gets swimlane data for rendering.
+    /// </summary>
+    public IReadOnlyList<SwimLane> GetSwimlanes()
+    {
+        return _swimlaneLayoutEngine.Lanes;
+    }
+
+    /// <summary>
+    /// Checks if an edge crosses lanes.
+    /// </summary>
+    public bool IsCrossLaneEdge(WorkItem prereq, WorkItem dependent)
+    {
+        return _swimlaneLayoutEngine.IsCrossLaneEdge(prereq, dependent);
     }
 }
