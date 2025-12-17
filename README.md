@@ -4,9 +4,10 @@ A Windows desktop application (WPF) that visualizes task dependencies, milestone
 
 ## Features
 
-- **Two Layout Modes**: Choose between Bracket (tournament-style) or Swimlane (milestone-grouped) views
+- **Three Layout Modes**: Bracket (tournament-style), Swimlane (milestone-grouped), or Phase Matrix (phase-organized grid)
 - **Tournament/Bracket-style Dependency Graph**: Visualizes how tasks and milestones depend on each other
 - **Swimlane Layout**: Groups work items by parent milestone in horizontal lanes
+- **Phase Matrix Layout**: Organizes work by Phase columns, Assembly Groups, and Discipline rows
 - **Milestone Dashboard**: Table view of all milestones with progress, health, and blocker information
 - **Inspector Panel**: Drill-down view of selected items showing dependencies, children, and rollup breakdowns
 - **Computed Progress**: Automatic weighted average calculation of milestone progress from descendant tasks
@@ -61,6 +62,7 @@ The CSV file must contain these columns:
 | TargetDate | date | milestones yes | YYYY-MM-DD format |
 | IsNA | bool | no | true/false. Default false |
 | Level | int | no | Optional: hints bracket layout (0..N) |
+| Phase | string | no | Phase name (e.g., "Phase 1 HW integration"). Inherited from parent if not set |
 
 A sample CSV file (`sample_workitems.csv`) is included in the repository.
 
@@ -108,7 +110,7 @@ The graph can be navigated using multiple methods:
 
 ## Layout Modes
 
-The application supports two graph layout modes, selectable via radio buttons in the toolbar:
+The application supports three graph layout modes, selectable via radio buttons in the toolbar:
 
 ### Bracket Mode (Default)
 Traditional tournament/bracket-style layout where:
@@ -127,9 +129,34 @@ Horizontal swimlane layout where:
 - Lanes are nested by milestone hierarchy depth (child milestones are indented)
 - Items without a parent are placed in a separate "Unassigned Items" lane
 
+### Phase Matrix Mode
+Grid-based layout organized by project phases:
+- **X-axis (columns)**: Phase columns, each representing a major program stage
+- **Y-axis (rows)**: Assembly groups stacked vertically within each phase
+- **Inside groups**: Tasks organized by discipline rows (HW, FW, System, Test)
+
+Features:
+- Phase headers show the phase name
+- Assembly group containers display milestone summary (title, ID, %, status, health, target date)
+- Discipline labels on the left of each row
+- Tasks arranged left-to-right by local dependency depth within each discipline row
+- Manhattan-routed edges (horizontal-then-vertical)
+- Cross-phase edges highlighted with thicker strokes
+- Cross-group edges shown with distinct styling
+
+Phase inheritance:
+- If a milestone has a Phase, all descendants inherit it unless overridden
+- If no Phase exists anywhere, all items default to "Phase 1"
+- Phases are sorted numerically if they start with a number (e.g., "Phase 1", "Phase 2")
+
+Edge toggle controls:
+- **Show Task Edges**: Toggle visibility of task-level dependency edges (default: ON)
+- **Milestone Edges Only**: Show only milestone-to-milestone edges for a decluttered view (default: OFF)
+
 **When to use each mode:**
 - **Bracket**: Best for seeing the overall dependency flow and identifying critical paths
 - **Swimlane**: Best for understanding milestone ownership and tracking work by parent grouping
+- **Phase Matrix**: Best for viewing work organized by program phases with discipline alignment
 
 ## Visual Cues
 
@@ -218,6 +245,22 @@ Dependencies that cross between swimlanes are highlighted:
 8. **Switch Back**: Click "Bracket" to verify mode switching works correctly
 9. **Test Zoom/Pan**: Both should work in swimlane mode
 10. **Test Selection**: Click a node in swimlane mode - Inspector should update correctly
+
+### Phase Matrix Mode Testing
+1. **Load CSV**: Open `sample_workitems.csv` (includes Phase column)
+2. **Switch Layout**: Click the "Phase Matrix" radio button in the toolbar
+3. **Verify Phase Columns**: Vertical phase columns should appear (Phase 1, Phase 2, Phase 3, Phase 4)
+4. **Verify Assembly Groups**: Each phase should contain assembly group containers (e.g., CCA1, CCA2, ASM1)
+5. **Verify Group Headers**: Group headers should show milestone title, ID, progress %, status, health, and target date
+6. **Verify Discipline Rows**: Inside each group, tasks should be organized by discipline (HW, FW, System, Test)
+7. **Verify Task Ordering**: Tasks within each discipline row should flow left-to-right by dependency
+8. **Check Edge Routing**: Edges should use Manhattan routing (horizontal then vertical)
+9. **Cross-Phase Edges**: Dependencies crossing phases should be thicker and darker
+10. **Toggle "Show Task Edges"**: Uncheck to hide all edges
+11. **Toggle "Milestone Edges Only"**: Check to show only milestone-to-milestone dependencies
+12. **Test Zoom/Pan**: Both should work in Phase Matrix mode
+13. **Test Selection**: Click a node - Inspector should update correctly
+14. **Verify Scrollbars**: If the matrix is large, scrollbars should appear
 
 ## License
 

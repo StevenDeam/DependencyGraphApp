@@ -286,6 +286,10 @@ public class CsvLoader
             }
         }
 
+        // Phase (optional)
+        var phaseStr = GetValue(values, columnIndex, "Phase")?.Trim();
+        item.PhaseRaw = string.IsNullOrWhiteSpace(phaseStr) ? null : phaseStr;
+
         return item;
     }
 

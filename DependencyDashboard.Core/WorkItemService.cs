@@ -17,6 +17,7 @@ public class WorkItemService
     private readonly ProgressCalculator _progressCalculator;
     private readonly GraphLayoutEngine _bracketLayoutEngine;
     private readonly SwimlaneLayoutEngine _swimlaneLayoutEngine;
+    private readonly PhaseMatrixLayoutEngine _phaseMatrixLayoutEngine;
 
     public WorkItemService()
     {
@@ -26,9 +27,11 @@ public class WorkItemService
         _progressCalculator = new ProgressCalculator();
         _bracketLayoutEngine = new GraphLayoutEngine();
         _swimlaneLayoutEngine = new SwimlaneLayoutEngine();
+        _phaseMatrixLayoutEngine = new PhaseMatrixLayoutEngine();
     }
 
     public SwimlaneLayoutEngine SwimlaneLayoutEngine => _swimlaneLayoutEngine;
+    public PhaseMatrixLayoutEngine PhaseMatrixLayoutEngine => _phaseMatrixLayoutEngine;
 
     /// <summary>
     /// Loads a CSV file, validates it, computes all derived values, and layouts the graph.
@@ -79,6 +82,10 @@ public class WorkItemService
         if (layoutMode == GraphLayoutMode.Swimlane)
         {
             _swimlaneLayoutEngine.ComputeLayout(collection, items);
+        }
+        else if (layoutMode == GraphLayoutMode.PhaseMatrix)
+        {
+            _phaseMatrixLayoutEngine.ComputeLayout(collection, items);
         }
         else
         {
@@ -140,5 +147,37 @@ public class WorkItemService
     public bool IsCrossLaneEdge(WorkItem prereq, WorkItem dependent)
     {
         return _swimlaneLayoutEngine.IsCrossLaneEdge(prereq, dependent);
+    }
+
+    /// <summary>
+    /// Gets phase matrix data for rendering.
+    /// </summary>
+    public IReadOnlyList<PhaseColumn> GetPhaseColumns()
+    {
+        return _phaseMatrixLayoutEngine.Phases;
+    }
+
+    /// <summary>
+    /// Gets phase matrix layout bounds.
+    /// </summary>
+    public (double Width, double Height) GetPhaseMatrixBounds()
+    {
+        return _phaseMatrixLayoutEngine.GetBounds();
+    }
+
+    /// <summary>
+    /// Checks if an edge crosses phase boundaries.
+    /// </summary>
+    public bool IsCrossPhaseEdge(WorkItem prereq, WorkItem dependent)
+    {
+        return _phaseMatrixLayoutEngine.IsCrossPhaseEdge(prereq, dependent);
+    }
+
+    /// <summary>
+    /// Checks if an edge crosses assembly group boundaries.
+    /// </summary>
+    public bool IsCrossGroupEdge(WorkItem prereq, WorkItem dependent)
+    {
+        return _phaseMatrixLayoutEngine.IsCrossGroupEdge(prereq, dependent);
     }
 }

@@ -33,6 +33,9 @@ public class MainViewModel : ViewModelBase
     private string? _loadedFilePath;
     private GraphLayoutMode _layoutMode = GraphLayoutMode.Bracket;
     private ObservableCollection<SwimLaneViewModel> _swimLanes = new();
+    private ObservableCollection<PhaseColumnViewModel> _phaseColumns = new();
+    private bool _showTaskEdges = true;
+    private bool _showMilestoneEdgesOnly;
 
     public MainViewModel()
     {
@@ -70,6 +73,7 @@ public class MainViewModel : ViewModelBase
     public ObservableCollection<FilterItemViewModel> HealthFilters { get; }
     public ObservableCollection<MilestoneRowViewModel> MilestoneItems { get; }
     public ObservableCollection<SwimLaneViewModel> SwimLanes => _swimLanes;
+    public ObservableCollection<PhaseColumnViewModel> PhaseColumns => _phaseColumns;
 
     public ICommand OpenCommand { get; }
     public ICommand ReloadCommand { get; }
@@ -194,6 +198,7 @@ public class MainViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsBracketMode));
                 OnPropertyChanged(nameof(IsSwimlaneMode));
+                OnPropertyChanged(nameof(IsPhaseMatrixMode));
                 ApplyFilters();
             }
         }
@@ -214,6 +219,39 @@ public class MainViewModel : ViewModelBase
         set
         {
             if (value) LayoutMode = GraphLayoutMode.Swimlane;
+        }
+    }
+
+    public bool IsPhaseMatrixMode
+    {
+        get => _layoutMode == GraphLayoutMode.PhaseMatrix;
+        set
+        {
+            if (value) LayoutMode = GraphLayoutMode.PhaseMatrix;
+        }
+    }
+
+    public bool ShowTaskEdges
+    {
+        get => _showTaskEdges;
+        set
+        {
+            if (SetProperty(ref _showTaskEdges, value))
+            {
+                OnPropertyChanged(nameof(ShowTaskEdges));
+            }
+        }
+    }
+
+    public bool ShowMilestoneEdgesOnly
+    {
+        get => _showMilestoneEdgesOnly;
+        set
+        {
+            if (SetProperty(ref _showMilestoneEdgesOnly, value))
+            {
+                OnPropertyChanged(nameof(ShowMilestoneEdgesOnly));
+            }
         }
     }
 
@@ -525,6 +563,16 @@ public class MainViewModel : ViewModelBase
                 foreach (var lane in _service.GetSwimlanes())
                 {
                     _swimLanes.Add(new SwimLaneViewModel(lane, _service));
+                }
+            }
+
+            // Build phase column view models if in phase matrix mode
+            _phaseColumns.Clear();
+            if (_layoutMode == GraphLayoutMode.PhaseMatrix)
+            {
+                foreach (var phase in _service.GetPhaseColumns())
+                {
+                    _phaseColumns.Add(new PhaseColumnViewModel(phase));
                 }
             }
         }

@@ -1,431 +1,324 @@
-Dependency Progress Dashboard (WPF) — Specification v1.0
+Dependency Progress Dashboard — Specification
 1. Purpose
 
-Build a Windows desktop application that reads a CSV describing tasks, milestones, and dependencies for complex HW/FW integration programs and renders:
+The Dependency Progress Dashboard is a visual planning and status-tracking tool for complex engineering programs involving:
 
-A tournament/bracket-style dependency graph (“assemblies merge into higher assemblies”),
+Multiple assemblies (CCAs, sub-assemblies, final assemblies)
 
-A milestone dashboard with computed progress and health,
+Multiple disciplines (FW, HW, System, Test, etc.)
 
-A drill-down inspector for blockers and downstream dependents,
+Strict dependency relationships
 
-Export of the graph view to PNG/PDF.
+Integration milestones that behave like a tournament bracket, where assemblies are progressively merged until a final system is built and tested
 
-The tool is date-light: only milestones have target dates; tasks do not (v1). Progress is tracked via percent complete on leaf tasks (manual in spreadsheet). Parent milestone progress is computed.
+This tool is not date-driven like a Gantt chart.
+Instead, it emphasizes:
 
-Non-goals (v1): multi-user, network sync, editing CSV in-app, authentication, real Gantt date scheduling for tasks.
+dependency order
 
-2. Core Concepts & Rules
-2.1 Work Item Types
+integration structure
 
-Task: leaf work done by an engineer; has manual percent complete (0–100).
+progress roll-ups
 
-Milestone: a gate/merge node; percent complete is computed from its descendants; may have a target date.
+blockers and risk
 
-2.2 Hierarchy vs Dependency
+Dates are used only for milestone health, not layout.
 
-Hierarchy (ParentId) is for grouping/rollups (e.g., tasks under “CCA1 Integration”).
+2. Conceptual Model (Hierarchy)
 
-Dependency (PrereqId) is for blocking (Finish-to-Start).
+The visualization and data model have three explicit structural layers:
 
-Constraint (v1): Each WorkItem may have at most one prerequisite (0 or 1).
+2.1 Phase (highest level — vertical columns)
 
-A WorkItem may have many dependents.
+A Phase represents a major program stage or integration boundary.
 
-2.3 Progress Computation
+Examples:
 
-Task % is read directly from CSV.
+Phase 1: HW Integration and Pre-Reqs
 
-Milestone % is computed as a weighted average of all descendant tasks (not milestones):
+Phase 2: Sub-Assembly Integration
 
-MilestonePercent = sum(task.Percent * task.Weight) / sum(task.Weight)
+Phase 3: Final Assembly Integration
 
-If sum(weight)=0 for all descendant tasks, fall back to equal weights (weight=1).
+Phase 4: Software, Test, Demo Prep
 
-Weight corresponds to “Story Points” or “Effort Weight” (integer >= 0).
+Phases are conceptual, not time-based.
+They indicate when assemblies connect, not how long they take.
 
-2.4 Blocked/Status Logic
+2.2 Assembly Group (within a Phase — stacked vertically)
 
-Statuses are derived unless explicitly provided. App must support these statuses:
+An Assembly Group represents a meaningful integration unit, typically a milestone such as:
 
-NotStarted
+CCA1
 
-InProgress
+CCA2
 
-Blocked
+ASM1
 
-Done
+Sub-Assembly A
 
-NotApplicable (NA)
+Final Assembly
 
-Default derivation (v1):
+Test Suite
 
-Done if PercentComplete >= 100 (task) OR computed >= 100 (milestone).
+Each Assembly Group:
 
-NotStarted if PercentComplete == 0 and not blocked.
+Is represented by a Milestone work item
 
-InProgress if 0 < PercentComplete < 100 and not blocked.
+Contains tasks and possibly sub-milestones
 
-Blocked if PrereqId exists and prerequisite item is not Done.
+Rolls up progress and health from its children
 
-NA if explicitly marked NA in CSV (applies to tasks or milestones); NA tasks are excluded from rollups.
+Assembly Groups are stacked top-to-bottom within a Phase column.
 
-Notes:
+2.3 Discipline Rows (inside an Assembly Group)
 
-A blocked item can still show partial % (engineers may have started but cannot finish). Status should still render as Blocked if prereq not done.
+Inside each Assembly Group:
 
-2.5 Health (Milestones Only)
+Tasks are arranged by Discipline
 
-Milestone “Health” is a simple indicator to highlight risk around target dates.
+Each discipline has its own horizontal row
 
-Inputs:
+Examples: FW, HW, System, Test
 
-Milestone TargetDate (required for health; if missing, health = NoDate)
+All tasks of the same discipline within a group appear on the same row.
 
-Definitions (v1):
-
-DaysToTarget = (TargetDate - Today).Days
-
-Health:
-
-Green if Done OR (not blocked AND DaysToTarget > 14)
-
-Yellow if not Done AND (blocked OR DaysToTarget between 7 and 14 inclusive)
-
-Red if not Done AND (DaysToTarget <= 6)
-
-NoDate if no target date
-
-(Keep it intentionally simple; coding agent should implement exactly as above.)
+Dependencies may cross discipline rows (e.g., HW task blocked by FW task).
 
 3. CSV Input Specification
-3.1 File Handling
+3.1 Required Columns
+Column	Description
+Id	Unique identifier for the work item
+Title	Human-readable name
+Type	Task or Milestone
+Discipline	Logical discipline (FW, HW, System, Test, etc.)
+Weight	Non-negative integer used for roll-ups
+3.2 Optional / Conditional Columns
+Column	Description
+PercentComplete	Required for Tasks (0–100), optional for Milestones
+ParentId	Hierarchical parent (used to group tasks under milestones)
+PrereqId	Dependency: this item cannot start until prereq is Done
+TargetDate	Required for Milestones (used for health computation)
+IsNA	Boolean flag to exclude item from rollups
+Phase	Optional but strongly recommended. Defines the Phase this item belongs to
+Level	Optional hint for layout ordering (lower = earlier)
+Phase inheritance rules
 
-App loads a single CSV via File->Open or startup “Open CSV”.
+If a Milestone has a Phase, all descendants inherit it unless overridden.
 
-Must support reloading same file (F5 / button).
+If no Phase exists anywhere, all items default to a single Phase.
 
-If parse errors exist, show a clear error panel listing row + column + message.
+4. Computation Rules
+4.1 Progress
 
-3.2 Required Columns
+Task progress = PercentComplete
 
-WorkItems.csv (single file):
+Milestone progress = weighted average of all descendant Tasks
 
-Column	Type	Required	Notes
-Id	string	yes	Unique stable identifier. No duplicates.
-Title	string	yes	Human-readable name.
-Type	enum	yes	Task or Milestone
-Discipline	string	yes	e.g., HW, FW, Test, ME (free text)
-PercentComplete	int	tasks yes	0–100. For milestones, ignored/optional.
-Weight	int	yes	Story points / effort weight. >=0.
-ParentId	string	no	Hierarchy grouping. Can be blank.
-PrereqId	string	no	Single prerequisite dependency. Can be blank.
-TargetDate	date	milestones yes	YYYY-MM-DD. Tasks blank.
-IsNA	bool	no	true/false. Default false. NA items excluded from rollups.
-Level	int	no	Optional: hints bracket layout (0..N).
-3.3 Validation Rules
+IsNA items are excluded
 
-Id must be unique.
+If total weight = 0, fall back to equal weighting
 
-Type must be Task/Milestone.
+4.2 Status
+Status	Rule
+Done	PercentComplete ≥ 100
+Blocked	Has Prereq and prereq is not Done
+InProgress	0 < PercentComplete < 100 and not Blocked
+NotStarted	PercentComplete = 0 and not Blocked
+NotApplicable	IsNA = true
 
-Task PercentComplete must be 0..100.
+Blocked items may still show partial progress.
 
-PrereqId if provided must reference an existing Id.
+4.3 Health (Milestones only)
 
-ParentId if provided must reference an existing Id (or else error).
+Health is derived from TargetDate and status:
 
-Reject cyclic dependencies in the Prereq graph (must detect and show error).
+Health	Rule
+Green	Done OR (not Blocked AND >14 days remaining)
+Yellow	Blocked OR 7–14 days remaining
+Red	≤6 days remaining and not Done
+NoDate	TargetDate missing
+5. Visualization Specification
+5.1 Layout Overview (Phase Matrix)
 
-Enforce “single prerequisite” by schema (one column).
+X-Axis: Phase columns
+Y-Axis: Assembly Groups within each Phase
+Inside Groups: Discipline rows with Tasks
 
-4. UI Requirements (WPF)
-4.1 Main Window Layout
+This creates a grid-like structure:
 
-Three-column layout:
+Phase 1 | Phase 2 | Phase 3 | Phase 4
+-------------------------------------
+Group A | Group C | Group F | ...
+  FW    |   FW    |   FW
+  HW    |   HW    |   HW
+-------------------------------------
+Group B | Group D | Group G | ...
 
-Top Command Bar
+5.2 Phase Columns
+
+Rendered as vertical swimlanes
+
+Have visible headers (Phase name)
+
+Fixed width
+
+Items never overlap columns
+
+Cross-phase dependencies are allowed
+
+5.3 Assembly Group Containers
+
+Each Assembly Group renders as a container box:
+
+Header shows:
+
+Title / Id
+
+Percent complete
+
+Status
+
+Health indicator
+
+Target date (if applicable)
+
+Children render inside the container
+
+Groups stack vertically within a phase
+
+5.4 Discipline Rows
+
+One row per discipline present in the group
+
+Discipline label on the left
+
+Tasks laid out left-to-right within the row
+
+Horizontal position does NOT represent time
+
+5.5 Dependency Edges
+
+Prereq → Dependent
+
+May cross discipline rows, group boundaries, and phases
+
+Prefer Manhattan routing (horizontal then vertical)
+
+Merge points should be visually clear (spines or bundled joins)
+
+Provide toggles:
+
+Show all task-level edges
+
+Show milestone-only edges (decluttered view)
+
+5.6 Navigation (Non-Negotiable)
+
+Graph is hosted in a ScrollViewer
+
+Horizontal and vertical scrollbars enabled
+
+Canvas size always expands to content bounds
+
+Zoom and pan supported
+
+No visual clipping under any circumstance
+
+6. UI Requirements
+6.1 Controls
 
 Open CSV
 
-Reload
+Reload CSV
 
 Export PNG
 
 Export PDF
 
-Search box (filters nodes by Id/Title substring)
+Layout selector:
 
-Toggle: Milestones only (hides tasks in graph)
+Existing layouts
 
-Toggle: Show blocked paths only
+Phase Matrix
 
-Left Panel: Filters
+Filters:
 
-Discipline multi-select (checkbox list populated from CSV)
-
-Status multi-select
-
-Health filter (milestones only)
-
-Clear Filters button
-
-Legend (status colors + edge types)
-
-Center: Graph View (primary)
-
-A bracket/tournament visual representing milestone merges and dependencies.
-
-Nodes render as “cards”:
-
-Title (bold)
-
-Id (smaller)
-
-Percent (large)
-
-Status pill
-
-For milestones: TargetDate + Health indicator
-
-Optional small “blocked by: <Id>” line if blocked
-
-Edges:
-
-Dependency edges (prereq → item): solid line with arrow direction.
-
-Optional (toggle) hierarchy edges: light dashed (parent → child) if shown.
-
-Interaction:
-
-Click node: selects and populates Inspector panel (right).
-
-Mouse wheel zoom + click-drag pan (basic graph navigation).
-
-Hover tooltip: shows full details (Id, title, discipline, status, %).
-
-Right Panel: Inspector
-When a node is selected:
-
-Summary section:
-
-Id, Title, Type, Discipline
-
-Status, Percent (computed if milestone)
-
-Target date (milestones only)
-
-Dependency section:
-
-Prerequisite (if any): show card summary + “jump to” button
-
-Dependents list: all items that depend on selected (click navigates)
-
-Children section (hierarchy):
-
-Direct children list (sorted by: Blocked first, then lowest %)
-
-For milestones: show rollup breakdown by discipline (simple list: discipline -> avg %)
-
-4.2 Secondary View: Milestone Dashboard Tab
-
-A second tab or view mode with a table:
-
-Columns:
-
-Milestone (Title + Id)
-
-Target Date
-
-Percent
+Discipline
 
 Status
 
 Health
 
-Blocked Count (number of descendant tasks currently blocked)
+Toggles:
 
-Top Blocker (the prerequisite chain item closest to blocking completion; see section 5.3)
+Milestones only
 
-Support sorting and filtering using the same filter panel.
+Blocked paths only
 
-5. Graph Layout & Algorithms
-5.1 Graph Construction
+Show task-level edges
 
-Build two graphs:
+6.2 Inspector Panel
 
-Dependency graph (edges from prereq → item)
+Selecting any item shows:
 
-Hierarchy tree (edges from parent → child)
+Id, Title, Type
 
-Primary graph display uses dependency edges between milestones and/or tasks depending on toggles.
+Discipline
 
-5.2 Layout Strategy (v1)
+Status, Progress, Health
 
-Implement a deterministic, readable bracket without advanced research-grade layout:
+TargetDate (if milestone)
 
-Use Level if present:
+Prerequisite
 
-X position derived from Level (higher level = further right, or vice-versa).
+Dependents
 
-If Level missing:
+Children
 
-Compute Level as longest dependency distance from leaves (topological order):
+7. Export
+PNG
 
-Nodes with no dependents can be considered leaves; but to keep it simple:
+Exports current view at current zoom
 
-Level(node) = max(Level(prereq)) + 1 with prereq edges
+Includes title, filename, timestamp
 
-Y positioning:
+Includes legend
 
-Group by Level, then order by Title or Id for stability.
+PDF
 
-Add vertical spacing constant.
+Landscape
 
-Render edges as straight or slightly curved lines (simple Bezier acceptable).
+Fit to page
 
-Must support zoom/pan and re-render cleanly.
+Same content as PNG
 
-5.3 Blocker Discovery (for dashboard)
+8. Acceptance Criteria
 
-Define helper:
+The system is acceptable when:
 
-FindBlockerChain(item):
+All content is visible via scroll/zoom
 
-Follow PrereqId repeatedly until null or until a Done node.
+Phases clearly segment major integration stages
 
-TopBlocker:
+Assemblies are visually grouped and understandable
 
-If selected milestone is blocked (directly or via descendants), show the first not-done item in its prerequisite chain that blocks the highest number of descendant tasks.
+FW/HW/Test tasks align by discipline within assemblies
 
-v1 simplification: for a milestone, compute all blocked descendant tasks; take the prerequisite item that appears most frequently in their chains; if tie, choose the one with earliest target date (milestone) else lexical Id.
+Dependencies clearly show integration flow
 
-6. Export Requirements
+Blockers are obvious
 
-Export current graph view to:
+Progress and health match CSV input
 
-PNG (at current zoom OR “fit to view” option)
+Final assembly path is visually traceable end-to-end
 
-PDF (fit to page, landscape default)
+9. Non-Goals
 
-Include:
+No scheduling or duration estimation
 
-Title + loaded CSV filename + export timestamp
+No automatic timeline generation
 
-Legend in a corner (optional but preferred)
+No drag-to-reschedule behavior
 
-7. Architecture & Implementation Constraints
-7.1 Technology
-
-.NET (modern) + WPF
-
-MVVM pattern
-
-No external services required
-
-Minimal third-party dependencies preferred
-
-7.2 Project Structure
-
-Recommended:
-
-DependencyDashboard.App (WPF UI)
-
-DependencyDashboard.Core (models, parsing, computation, graph algorithms)
-
-7.3 Key Classes (minimum)
-
-WorkItem
-
-Id, Title, Type, Discipline, PercentCompleteRaw, Weight, ParentId, PrereqId, TargetDate, IsNA
-
-Computed fields: ComputedPercent, ComputedStatus, Health
-
-DependencyEdge (PrereqId -> Id)
-
-CsvLoader (parse + validate + diagnostics)
-
-ProgressCalculator (rollups + status + health)
-
-GraphLayoutEngine (assign node positions)
-
-GraphViewModel, DashboardViewModel, InspectorViewModel
-
-7.4 Performance Expectations
-
-Should handle ~2,000 work items reasonably.
-
-Avoid O(N^2) repeated chain traversals; cache chains or use memoization.
-
-8. Acceptance Criteria (Definition of Done)
-
-Load CSV, validate, show clear errors for:
-
-missing required columns
-
-duplicate Id
-
-missing referenced prereq/parent
-
-cycles in prereq dependencies
-
-Render graph with:
-
-nodes for items passing filters
-
-edges for prerequisites
-
-zoom/pan
-
-Computed milestone progress matches spec (weighted rollup of descendant tasks excluding NA)
-
-Blocked status and “blocked by” logic works (single prerequisite)
-
-Milestone dashboard shows correct health categories and sortable table
-
-Inspector panel shows prereq + dependents + children
-
-Export PNG and PDF succeeds and matches visible graph state (or fit-to-view option)
-
-Search filters nodes by Id/Title substring
-
-9. Example CSV (minimal)
-
-(Include in repository as sample_workitems.csv)
-
-Id,Title,Type,Discipline,PercentComplete,Weight,ParentId,PrereqId,TargetDate,IsNA,Level
-CCA1_HW_VIS,CCA1 Visual Inspection,Task,HW,100,2,CCA1_HW,,,
-CCA1_HW_CONT,CCA1 Continuity Check,Task,HW,50,3,CCA1_HW,CCA1_HW_VIS,,,
-CCA1_FW_FPGA,CCA1 Load Firmware to FPGA,Task,FW,0,5,CCA1_FW,CCA1_HW_CONT,,,
-CCA1_FW_LOADED,CCA1 Firmware Loaded,Milestone,FW,,0,CCA1,CCA1_FW_FPGA,2026-01-15,false,2
-CCA2_HW_VIS,CCA2 Visual Inspection,Task,HW,100,2,CCA2_HW,,,
-CCA2_FW_FPGA,CCA2 Load Firmware to FPGA,Task,FW,25,5,CCA2_FW,CCA2_HW_VIS,,,
-CCA2_FW_LOADED,CCA2 Firmware Loaded,Milestone,FW,,0,CCA2,CCA2_FW_FPGA,2026-01-20,false,2
-ASM1_INT,CCA-ASM1 Integrated,Milestone,System,,0,ASM1,,2026-02-01,false,3
-ASM1_INT_PR1,ASM1 prereq CCA1 loaded,Task,System,0,1,ASM1_INT,CCA1_FW_LOADED,,,
-ASM1_INT_PR2,ASM1 prereq CCA2 loaded,Task,System,0,1,ASM1_INT,CCA2_FW_LOADED,,,
-
-
-(Notes: milestones have PercentComplete blank; Level is optional hint.)
-
-10. Instructions to the Coding Agent (one-shot guidance)
-
-Implement exactly the data model and rules above first.
-
-Prioritize correctness + clean MVVM + deterministic layout.
-
-Start with:
-
-CSV parsing/validation + unit tests for calculations and cycle detection
-
-Progress/status computation
-
-Simple layout + graph rendering + selection/inspector
-
-Filters/search
-
-Dashboard view
-
-Export PNG/PDF
-
-Keep rendering custom but straightforward (Canvas + ItemsControl for nodes, draw edges in an overlay).
+No multi-user editing

@@ -1,23 +1,34 @@
-Id,Title,Type,Discipline,PercentComplete,Weight,ParentId,PrereqId,TargetDate,IsNA,Level
-CCA1,CCA1 Integration,Milestone,System,,0,,,2026-01-15,false,3
-CCA1_HW,CCA1 Hardware,Milestone,HW,,0,CCA1,,2026-01-10,false,2
-CCA1_HW_VIS,CCA1 Visual Inspection,Task,HW,100,2,CCA1_HW,,,false,0
-CCA1_HW_CONT,CCA1 Continuity Check,Task,HW,50,3,CCA1_HW,CCA1_HW_VIS,,false,1
-CCA1_FW,CCA1 Firmware,Milestone,FW,,0,CCA1,,2026-01-12,false,2
-CCA1_FW_FPGA,CCA1 Load Firmware to FPGA,Task,FW,0,5,CCA1_FW,CCA1_HW_CONT,,false,2
-CCA1_FW_LOADED,CCA1 Firmware Loaded,Milestone,FW,,0,CCA1,CCA1_FW_FPGA,2026-01-15,false,3
-CCA2,CCA2 Integration,Milestone,System,,0,,,2026-01-20,false,3
-CCA2_HW,CCA2 Hardware,Milestone,HW,,0,CCA2,,2026-01-10,false,1
-CCA2_HW_VIS,CCA2 Visual Inspection,Task,HW,100,2,CCA2_HW,,,false,0
-CCA2_FW,CCA2 Firmware,Milestone,FW,,0,CCA2,,2026-01-18,false,2
-CCA2_FW_FPGA,CCA2 Load Firmware to FPGA,Task,FW,25,5,CCA2_FW,CCA2_HW_VIS,,false,1
-CCA2_FW_LOADED,CCA2 Firmware Loaded,Milestone,FW,,0,CCA2,CCA2_FW_FPGA,2026-01-20,false,2
-ASM1,Assembly 1,Milestone,System,,0,,,2026-02-05,false,5
-ASM1_INT,CCA-ASM1 Integrated,Milestone,System,,0,ASM1,,2026-02-01,false,4
-ASM1_INT_PR1,ASM1 prereq CCA1 loaded,Task,System,0,1,ASM1_INT,CCA1_FW_LOADED,,false,4
-ASM1_INT_PR2,ASM1 prereq CCA2 loaded,Task,System,0,1,ASM1_INT,CCA2_FW_LOADED,,false,3
-TEST_SUITE,System Test Suite,Milestone,Test,,0,,,2026-02-15,false,5
-TEST_FUNC,Functional Tests,Task,Test,0,3,TEST_SUITE,ASM1_INT,,false,5
-TEST_PERF,Performance Tests,Task,Test,0,2,TEST_SUITE,ASM1_INT,,false,5
-FINAL_REV,Final Review,Milestone,System,,0,,,2026-02-28,false,6
-FINAL_REV_TASK,Complete Final Review,Task,System,0,1,FINAL_REV,TEST_SUITE,,false,6
+Id,Title,Type,Discipline,PercentComplete,Weight,ParentId,PrereqId,TargetDate,IsNA,Level,Phase
+CCA1,CCA1 Integration,Milestone,System,,0,,,2026-01-15,false,,Phase 1 HW integration and pre-reqs
+CCA1_HW,CCA1 Hardware,Milestone,HW,,0,CCA1,,2026-01-10,false,,
+CCA1_HW_VIS,CCA1 Visual Inspection,Task,HW,100,2,CCA1_HW,,,false,,
+CCA1_HW_CONT,CCA1 Continuity Check,Task,HW,50,3,CCA1_HW,CCA1_HW_VIS,,false,,
+CCA1_FW,CCA1 Firmware,Milestone,FW,,0,CCA1,,2026-01-12,false,,
+CCA1_FW_FPGA,CCA1 Load Firmware to FPGA,Task,FW,0,5,CCA1_FW,CCA1_HW_CONT,,false,,
+CCA1_FW_LOADED,CCA1 Firmware Loaded,Milestone,FW,,0,CCA1,CCA1_FW_FPGA,2026-01-15,false,,
+
+CCA2,CCA2 Integration,Milestone,System,,0,,,2026-01-20,false,,Phase 1 HW integration and pre-reqs
+CCA2_HW,CCA2 Hardware,Milestone,HW,,0,CCA2,,2026-01-10,false,,
+CCA2_HW_VIS,CCA2 Visual Inspection,Task,HW,100,2,CCA2_HW,,,false,,
+CCA2_FW,CCA2 Firmware,Milestone,FW,,0,CCA2,,2026-01-18,false,,
+CCA2_FW_FPGA,CCA2 Load Firmware to FPGA,Task,FW,25,5,CCA2_FW,CCA2_HW_VIS,,false,,
+CCA2_FW_LOADED,CCA2 Firmware Loaded,Milestone,FW,,0,CCA2,CCA2_FW_FPGA,2026-01-20,false,,
+
+ASM1,Assembly 1,Milestone,System,,0,,,2026-02-05,false,,Phase 2 Sub Assembly Integration
+ASM1_INT,CCA-ASM1 Integrated,Milestone,System,,0,ASM1,,2026-02-01,false,,
+ASM1_INT_PR1,ASM1 prereq CCA1 loaded,Task,System,0,1,ASM1_INT,CCA1_FW_LOADED,,false,,
+ASM1_INT_PR2,ASM1 prereq CCA2 loaded,Task,System,0,1,ASM1_INT,CCA2_FW_LOADED,,false,,
+ASM1_BRINGUP,ASM1 Bringup Tests,Task,HW,0,3,ASM1_INT,ASM1_INT_PR1,,false,,
+ASM1_FW_SMOKE,ASM1 FW Smoke Test,Task,FW,0,3,ASM1_INT,ASM1_INT_PR2,,false,,
+
+FINAL_ASM,Final Assembly Build,Milestone,System,,0,,,2026-02-20,false,,Phase 3 Final Assembly integration
+FINAL_ASM_INT,Integrate ASM1 into Final Assembly,Task,System,0,5,FINAL_ASM,ASM1_INT,,false,,
+FINAL_ASM_PWR,Final Assembly Power-On,Task,HW,0,4,FINAL_ASM,FINAL_ASM_INT,,false,,
+FINAL_ASM_FW_CFG,Final Assembly FW Config,Task,FW,0,4,FINAL_ASM,FINAL_ASM_PWR,,false,,
+
+TEST_SUITE,System Test Suite,Milestone,Test,,0,,,2026-02-28,false,,Phase 4 Software and Demo prep
+TEST_FUNC,Functional Tests,Task,Test,0,3,TEST_SUITE,FINAL_ASM_FW_CFG,,false,,
+TEST_PERF,Performance Tests,Task,Test,0,2,TEST_SUITE,FINAL_ASM_FW_CFG,,false,,
+
+FINAL_REV,Final Review,Milestone,System,,0,,,2026-03-05,false,,Phase 4 Software and Demo prep
+FINAL_REV_TASK,Complete Final Review,Task,System,0,1,FINAL_REV,TEST_SUITE,,false,,

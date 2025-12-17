@@ -55,7 +55,14 @@
                     <RadioButton Content="Bracket" IsChecked="{Binding IsBracketMode}"
                                  VerticalAlignment="Center" Margin="0,0,8,0" GroupName="LayoutMode"/>
                     <RadioButton Content="Swimlanes" IsChecked="{Binding IsSwimlaneMode}"
+                                 VerticalAlignment="Center" Margin="0,0,8,0" GroupName="LayoutMode"/>
+                    <RadioButton Content="Phase Matrix" IsChecked="{Binding IsPhaseMatrixMode}"
                                  VerticalAlignment="Center" GroupName="LayoutMode"/>
+                    <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="8,0"/>
+                    <CheckBox Content="Show Task Edges" IsChecked="{Binding ShowTaskEdges}"
+                              VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <CheckBox Content="Milestone Edges Only" IsChecked="{Binding ShowMilestoneEdgesOnly}"
+                              VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Center: Zoom controls -->
@@ -195,7 +202,10 @@
                                                   WorkItems="{Binding FilteredWorkItems}"
                                                   Edges="{Binding FilteredEdges}"
                                                   SwimLanes="{Binding SwimLanes}"
+                                                  PhaseColumns="{Binding PhaseColumns}"
                                                   LayoutMode="{Binding LayoutMode}"
+                                                  ShowTaskEdges="{Binding ShowTaskEdges}"
+                                                  ShowMilestoneEdgesOnly="{Binding ShowMilestoneEdgesOnly}"
                                                   ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
                                                   PanX="{Binding PanX, Mode=TwoWay}"
                                                   PanY="{Binding PanY, Mode=TwoWay}"

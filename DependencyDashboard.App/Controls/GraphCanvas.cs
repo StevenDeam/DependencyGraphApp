@@ -76,6 +76,18 @@ public class GraphCanvas : Canvas
         DependencyProperty.Register(nameof(SelectedItem), typeof(WorkItemViewModel), typeof(GraphCanvas),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
+    public static readonly DependencyProperty PhaseColumnsProperty =
+        DependencyProperty.Register(nameof(PhaseColumns), typeof(ObservableCollection<PhaseColumnViewModel>),
+            typeof(GraphCanvas), new PropertyMetadata(null, OnPhaseColumnsChanged));
+
+    public static readonly DependencyProperty ShowTaskEdgesProperty =
+        DependencyProperty.Register(nameof(ShowTaskEdges), typeof(bool), typeof(GraphCanvas),
+            new PropertyMetadata(true, OnEdgeVisibilityChanged));
+
+    public static readonly DependencyProperty ShowMilestoneEdgesOnlyProperty =
+        DependencyProperty.Register(nameof(ShowMilestoneEdgesOnly), typeof(bool), typeof(GraphCanvas),
+            new PropertyMetadata(false, OnEdgeVisibilityChanged));
+
     public ObservableCollection<WorkItemViewModel> WorkItems
     {
         get => (ObservableCollection<WorkItemViewModel>)GetValue(WorkItemsProperty);
@@ -122,6 +134,24 @@ public class GraphCanvas : Canvas
     {
         get => (WorkItemViewModel?)GetValue(SelectedItemProperty);
         set => SetValue(SelectedItemProperty, value);
+    }
+
+    public ObservableCollection<PhaseColumnViewModel> PhaseColumns
+    {
+        get => (ObservableCollection<PhaseColumnViewModel>)GetValue(PhaseColumnsProperty);
+        set => SetValue(PhaseColumnsProperty, value);
+    }
+
+    public bool ShowTaskEdges
+    {
+        get => (bool)GetValue(ShowTaskEdgesProperty);
+        set => SetValue(ShowTaskEdgesProperty, value);
+    }
+
+    public bool ShowMilestoneEdgesOnly
+    {
+        get => (bool)GetValue(ShowMilestoneEdgesOnlyProperty);
+        set => SetValue(ShowMilestoneEdgesOnlyProperty, value);
     }
 
     #endregion
@@ -177,6 +207,30 @@ public class GraphCanvas : Canvas
     }
 
     private static void OnLayoutModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is GraphCanvas canvas)
+        {
+            canvas.RebuildVisuals();
+        }
+    }
+
+    private static void OnPhaseColumnsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is GraphCanvas canvas)
+        {
+            if (e.OldValue is INotifyCollectionChanged oldCollection)
+            {
+                oldCollection.CollectionChanged -= canvas.OnCollectionChanged;
+            }
+            if (e.NewValue is INotifyCollectionChanged newCollection)
+            {
+                newCollection.CollectionChanged += canvas.OnCollectionChanged;
+            }
+            canvas.RebuildVisuals();
+        }
+    }
+
+    private static void OnEdgeVisibilityChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is GraphCanvas canvas)
         {
@@ -254,6 +308,12 @@ public class GraphCanvas : Canvas
             Width = (w + ContentPadding) * ZoomLevel;
             Height = (h + ContentPadding) * ZoomLevel;
         }
+        else if (LayoutMode == GraphLayoutMode.PhaseMatrix)
+        {
+            var (w, h) = CalculatePhaseMatrixBounds();
+            Width = (w + ContentPadding) * ZoomLevel;
+            Height = (h + ContentPadding) * ZoomLevel;
+        }
         else
         {
             var (minX, minY, maxX, maxY) = CalculateBounds();
@@ -262,6 +322,19 @@ public class GraphCanvas : Canvas
             Width = contentWidth * ZoomLevel;
             Height = contentHeight * ZoomLevel;
         }
+    }
+
+    private (double Width, double Height) CalculatePhaseMatrixBounds()
+    {
+        if (PhaseColumns == null || PhaseColumns.Count == 0)
+        {
+            return (800, 600);
+        }
+
+        double maxX = PhaseColumns.Max(p => p.X + p.Width);
+        double maxY = PhaseColumns.Max(p => p.Y + p.Height);
+
+        return (maxX + ContentPadding, maxY + ContentPadding);
     }
 
     #endregion
@@ -275,6 +348,10 @@ public class GraphCanvas : Canvas
         if (LayoutMode == GraphLayoutMode.Swimlane)
         {
             RebuildSwimlaneVisuals();
+        }
+        else if (LayoutMode == GraphLayoutMode.PhaseMatrix)
+        {
+            RebuildPhaseMatrixVisuals();
         }
         else
         {
@@ -589,6 +666,457 @@ public class GraphCanvas : Canvas
             container.Children.Add(gateIndicator);
         }
     }
+
+    #region Phase Matrix Rendering
+
+    private void RebuildPhaseMatrixVisuals()
+    {
+        if (PhaseColumns == null || PhaseColumns.Count == 0)
+        {
+            // Fall back to bracket if no phases
+            if (WorkItems != null && WorkItems.Count > 0)
+            {
+                RebuildBracketVisuals();
+            }
+            else
+            {
+                Width = 800;
+                Height = 600;
+            }
+            return;
+        }
+
+        var (contentWidth, contentHeight) = CalculatePhaseMatrixBounds();
+        contentWidth += ContentPadding;
+        contentHeight += ContentPadding;
+
+        Width = contentWidth * ZoomLevel;
+        Height = contentHeight * ZoomLevel;
+
+        var container = new Canvas
+        {
+            RenderTransform = _transformGroup,
+            Width = contentWidth,
+            Height = contentHeight
+        };
+
+        // 1. Draw phase column backgrounds
+        foreach (var phase in PhaseColumns)
+        {
+            DrawPhaseColumnBackground(container, phase);
+        }
+
+        // 2. Draw assembly group containers
+        foreach (var phase in PhaseColumns)
+        {
+            foreach (var group in phase.Groups)
+            {
+                DrawAssemblyGroup(container, group);
+            }
+        }
+
+        // 3. Draw edges with Manhattan routing
+        if (Edges != null && ShowTaskEdges)
+        {
+            foreach (var edge in Edges)
+            {
+                if (ShowMilestoneEdgesOnly)
+                {
+                    // Only show milestone-to-milestone edges
+                    if (edge.Prerequisite?.IsMilestone == true && edge.Dependent?.IsMilestone == true)
+                    {
+                        DrawPhaseMatrixEdge(container, edge);
+                    }
+                }
+                else
+                {
+                    DrawPhaseMatrixEdge(container, edge);
+                }
+            }
+        }
+
+        // 4. Draw nodes
+        if (WorkItems != null)
+        {
+            foreach (var item in WorkItems)
+            {
+                DrawPhaseMatrixNode(container, item);
+            }
+        }
+
+        Children.Add(container);
+    }
+
+    private void DrawPhaseColumnBackground(Canvas container, PhaseColumnViewModel phase)
+    {
+        // Column background
+        var columnBg = new Rectangle
+        {
+            Width = phase.Width,
+            Height = phase.Height,
+            Fill = phase.ColumnBackground,
+            Stroke = phase.ColumnBorder,
+            StrokeThickness = 1,
+            RadiusX = 6,
+            RadiusY = 6
+        };
+        Canvas.SetLeft(columnBg, phase.X);
+        Canvas.SetTop(columnBg, phase.Y);
+        container.Children.Add(columnBg);
+
+        // Phase header
+        var headerBg = new Rectangle
+        {
+            Width = phase.Width - 4,
+            Height = PhaseMatrixLayoutEngine.PhaseHeaderHeight - 4,
+            Fill = phase.HeaderBackground,
+            RadiusX = 4,
+            RadiusY = 4
+        };
+        Canvas.SetLeft(headerBg, phase.X + 2);
+        Canvas.SetTop(headerBg, phase.Y + 2);
+        container.Children.Add(headerBg);
+
+        // Phase name
+        var phaseName = new TextBlock
+        {
+            Text = phase.PhaseName,
+            FontWeight = FontWeights.Bold,
+            FontSize = 14,
+            Foreground = Brushes.White,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = phase.Width - 20
+        };
+        Canvas.SetLeft(phaseName, phase.X + 10);
+        Canvas.SetTop(phaseName, phase.Y + 10);
+        container.Children.Add(phaseName);
+    }
+
+    private void DrawAssemblyGroup(Canvas container, AssemblyGroupViewModel group)
+    {
+        // Group background
+        var groupBg = new Rectangle
+        {
+            Width = group.Width,
+            Height = group.Height,
+            Fill = group.GroupBackground,
+            Stroke = group.GroupBorder,
+            StrokeThickness = 1,
+            RadiusX = 4,
+            RadiusY = 4
+        };
+        Canvas.SetLeft(groupBg, group.X);
+        Canvas.SetTop(groupBg, group.Y);
+        container.Children.Add(groupBg);
+
+        // Group header background
+        var headerBg = new Rectangle
+        {
+            Width = group.Width - 4,
+            Height = PhaseMatrixLayoutEngine.GroupHeaderHeight - 10,
+            Fill = group.HeaderBackground,
+            RadiusX = 3,
+            RadiusY = 3
+        };
+        Canvas.SetLeft(headerBg, group.X + 2);
+        Canvas.SetTop(headerBg, group.Y + 2);
+        container.Children.Add(headerBg);
+
+        // Group header content
+        var headerPanel = new StackPanel
+        {
+            Width = group.Width - 20
+        };
+
+        // Title
+        var title = new TextBlock
+        {
+            Text = group.DisplayHeader,
+            FontWeight = FontWeights.Bold,
+            FontSize = 11,
+            Foreground = Brushes.White,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        headerPanel.Children.Add(title);
+
+        if (group.HasMilestone)
+        {
+            // Progress and status row
+            var infoPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+
+            var percentText = new TextBlock
+            {
+                Text = group.DisplayPercent,
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            infoPanel.Children.Add(percentText);
+
+            // Status pill
+            var statusPill = new Border
+            {
+                Background = group.StatusBrush,
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 1, 4, 1)
+            };
+            statusPill.Child = new TextBlock
+            {
+                Text = group.StatusText,
+                FontSize = 9,
+                Foreground = Brushes.White
+            };
+            infoPanel.Children.Add(statusPill);
+
+            // Health indicator
+            var healthDot = new Ellipse
+            {
+                Width = 10,
+                Height = 10,
+                Fill = group.HealthBrush,
+                Margin = new Thickness(8, 2, 0, 0)
+            };
+            infoPanel.Children.Add(healthDot);
+
+            // Target date
+            if (!string.IsNullOrEmpty(group.DisplayTargetDate))
+            {
+                var dateText = new TextBlock
+                {
+                    Text = group.DisplayTargetDate,
+                    FontSize = 9,
+                    Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
+                    Margin = new Thickness(8, 2, 0, 0)
+                };
+                infoPanel.Children.Add(dateText);
+            }
+
+            headerPanel.Children.Add(infoPanel);
+        }
+
+        Canvas.SetLeft(headerPanel, group.X + 8);
+        Canvas.SetTop(headerPanel, group.Y + 6);
+        container.Children.Add(headerPanel);
+
+        // Draw discipline rows
+        foreach (var row in group.DisciplineRows)
+        {
+            DrawDisciplineRow(container, group, row);
+        }
+    }
+
+    private void DrawDisciplineRow(Canvas container, AssemblyGroupViewModel group, DisciplineRowViewModel row)
+    {
+        // Row background
+        var rowBg = new Rectangle
+        {
+            Width = group.Width - PhaseMatrixLayoutEngine.DisciplineLabelWidth - 10,
+            Height = row.Height - 4,
+            Fill = row.RowBackground,
+            RadiusX = 2,
+            RadiusY = 2
+        };
+        Canvas.SetLeft(rowBg, group.X + PhaseMatrixLayoutEngine.DisciplineLabelWidth + 5);
+        Canvas.SetTop(rowBg, row.Y + 2);
+        container.Children.Add(rowBg);
+
+        // Discipline label
+        var labelBg = new Border
+        {
+            Width = PhaseMatrixLayoutEngine.DisciplineLabelWidth - 6,
+            Height = row.Height - 8,
+            Background = row.LabelBackground,
+            CornerRadius = new CornerRadius(3)
+        };
+        var label = new TextBlock
+        {
+            Text = row.Discipline,
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 10,
+            Foreground = Brushes.White,
+            TextAlignment = TextAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        labelBg.Child = label;
+
+        Canvas.SetLeft(labelBg, group.X + 3);
+        Canvas.SetTop(labelBg, row.Y + 4);
+        container.Children.Add(labelBg);
+    }
+
+    private void DrawPhaseMatrixNode(Canvas container, WorkItemViewModel item)
+    {
+        var node = CreatePhaseMatrixNodeVisual(item);
+        Canvas.SetLeft(node, item.X);
+        Canvas.SetTop(node, item.Y);
+        container.Children.Add(node);
+    }
+
+    private FrameworkElement CreatePhaseMatrixNodeVisual(WorkItemViewModel item)
+    {
+        double nodeWidth = PhaseMatrixLayoutEngine.NodeWidth;
+        double nodeHeight = PhaseMatrixLayoutEngine.NodeHeight;
+
+        var border = new Border
+        {
+            Width = nodeWidth,
+            Height = nodeHeight,
+            Background = item.NodeBackground,
+            BorderBrush = item.NodeBorder,
+            BorderThickness = new Thickness(item.NodeBorderThickness),
+            CornerRadius = new CornerRadius(4),
+            Cursor = Cursors.Hand,
+            Tag = item,
+            ToolTip = item.TooltipText
+        };
+
+        border.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            BlurRadius = 3,
+            ShadowDepth = 1,
+            Opacity = 0.15,
+            Color = Colors.Black
+        };
+
+        border.MouseLeftButtonDown += OnNodeClick;
+
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        // Title
+        var title = new TextBlock
+        {
+            Text = item.Title,
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 9,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(4, 3, 4, 0)
+        };
+        Grid.SetRow(title, 0);
+        grid.Children.Add(title);
+
+        // ID
+        var id = new TextBlock
+        {
+            Text = item.Id,
+            FontSize = 7,
+            Foreground = Brushes.Gray,
+            Margin = new Thickness(4, 0, 4, 0)
+        };
+        Grid.SetRow(id, 1);
+        grid.Children.Add(id);
+
+        // Bottom row: percent and status
+        var bottomPanel = new DockPanel { Margin = new Thickness(4, 2, 4, 3) };
+
+        var percent = new TextBlock
+        {
+            Text = item.DisplayPercent,
+            FontSize = 12,
+            FontWeight = FontWeights.Bold
+        };
+        DockPanel.SetDock(percent, Dock.Left);
+        bottomPanel.Children.Add(percent);
+
+        var statusPill = new Border
+        {
+            Background = item.StatusBrush,
+            CornerRadius = new CornerRadius(2),
+            Padding = new Thickness(3, 0, 3, 0),
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        statusPill.Child = new TextBlock
+        {
+            Text = item.StatusText,
+            FontSize = 7,
+            Foreground = Brushes.White
+        };
+        DockPanel.SetDock(statusPill, Dock.Right);
+        bottomPanel.Children.Add(statusPill);
+
+        Grid.SetRow(bottomPanel, 2);
+        grid.Children.Add(bottomPanel);
+
+        border.Child = grid;
+        return border;
+    }
+
+    private void DrawPhaseMatrixEdge(Canvas container, DependencyEdgeViewModel edge)
+    {
+        if (edge.Prerequisite == null || edge.Dependent == null) return;
+
+        var startX = edge.Prerequisite.X + PhaseMatrixLayoutEngine.NodeWidth;
+        var startY = edge.Prerequisite.Y + PhaseMatrixLayoutEngine.NodeHeight / 2;
+        var endX = edge.Dependent.X;
+        var endY = edge.Dependent.Y + PhaseMatrixLayoutEngine.NodeHeight / 2;
+
+        // Determine if cross-phase or cross-group edge
+        bool isCrossPhase = false;
+        bool isCrossGroup = false;
+        if (PhaseColumns != null)
+        {
+            var prereqPhase = PhaseColumns.FirstOrDefault(p =>
+                p.Groups.Any(g => g.AllItems.Any(i => i.Id == edge.Prerequisite.Id)));
+            var depPhase = PhaseColumns.FirstOrDefault(p =>
+                p.Groups.Any(g => g.AllItems.Any(i => i.Id == edge.Dependent.Id)));
+            isCrossPhase = prereqPhase != depPhase;
+
+            var prereqGroup = PhaseColumns.SelectMany(p => p.Groups)
+                .FirstOrDefault(g => g.AllItems.Any(i => i.Id == edge.Prerequisite.Id));
+            var depGroup = PhaseColumns.SelectMany(p => p.Groups)
+                .FirstOrDefault(g => g.AllItems.Any(i => i.Id == edge.Dependent.Id));
+            isCrossGroup = prereqGroup != depGroup;
+        }
+
+        // Manhattan routing: horizontal then vertical
+        var geometry = new PathGeometry();
+        var figure = new PathFigure { StartPoint = new Point(startX, startY) };
+
+        double midX = startX + (endX - startX) / 2;
+
+        // Horizontal from start
+        figure.Segments.Add(new LineSegment(new Point(midX, startY), true));
+        // Vertical
+        figure.Segments.Add(new LineSegment(new Point(midX, endY), true));
+        // Horizontal to end
+        figure.Segments.Add(new LineSegment(new Point(endX, endY), true));
+
+        geometry.Figures.Add(figure);
+
+        var strokeBrush = isCrossPhase
+            ? new SolidColorBrush(Color.FromRgb(100, 60, 60))
+            : isCrossGroup
+                ? new SolidColorBrush(Color.FromRgb(80, 80, 100))
+                : edge.StrokeBrush;
+
+        double strokeThickness = isCrossPhase ? 2.5 : isCrossGroup ? 2.0 : 1.5;
+
+        var path = new Path
+        {
+            Stroke = strokeBrush,
+            StrokeThickness = strokeThickness,
+            Data = geometry
+        };
+        container.Children.Add(path);
+
+        // Arrow head
+        const double arrowSize = 6;
+        var p1 = new Point(endX - arrowSize, endY - arrowSize / 2);
+        var p2 = new Point(endX - arrowSize, endY + arrowSize / 2);
+
+        var arrow = new Polygon
+        {
+            Points = new PointCollection { p1, new Point(endX, endY), p2 },
+            Fill = strokeBrush
+        };
+        container.Children.Add(arrow);
+    }
+
+    #endregion
 
     #region Bracket Mode Drawing (existing)
 

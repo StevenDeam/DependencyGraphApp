@@ -17,6 +17,10 @@ public class WorkItem
     public DateTime? TargetDate { get; set; }
     public bool IsNA { get; set; }
     public int? Level { get; set; }
+    public string? PhaseRaw { get; set; }
+
+    // Computed phase (after inheritance)
+    public string Phase { get; set; } = string.Empty;
 
     // Computed properties (set by ProgressCalculator)
     public double ComputedPercent { get; set; }
