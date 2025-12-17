@@ -1,0 +1,13 @@
+<Application x:Class="DependencyDashboard.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DependencyDashboard.App"
+             xmlns:converters="clr-namespace:DependencyDashboard.App.Resources"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+        <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <converters:NullToVisibilityConverterInverse x:Key="NullToVisibilityConverterInverse"/>
+    </Application.Resources>
+</Application>
