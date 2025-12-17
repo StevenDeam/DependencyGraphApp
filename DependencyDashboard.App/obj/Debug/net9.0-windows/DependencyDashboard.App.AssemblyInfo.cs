@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DependencyDashboard.App")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5844a66aa59a4815da7a8da16eb7d09a37f0be5d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+298dbd368711ddf18a6abc915a93a902fc46ceef")]
 [assembly: System.Reflection.AssemblyProductAttribute("DependencyDashboard.App")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DependencyDashboard.App")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

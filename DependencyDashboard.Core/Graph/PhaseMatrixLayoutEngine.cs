@@ -49,20 +49,45 @@ public class DisciplineRow
 /// </summary>
 public partial class PhaseMatrixLayoutEngine
 {
-    // Layout constants
+    #region Layout Constants
+    // These constants define the Phase Matrix sizing rules.
+    // Widths are computed dynamically based on content:
+    //   RowWidth = DisciplineLabelWidth + RowLeftPadding + (taskCount * NodeWidth) + ((taskCount - 1) * NodeSpacingX) + RowRightPadding
+    //   GroupWidth = max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2)
+    //   PhaseWidth = max(MinPhaseWidth, maxGroupWidth + PhasePadding * 2)
+
+    // Phase column sizing
     public const double PhaseHeaderHeight = 40;
-    public const double PhaseColumnMinWidth = 350;
+    public const double PhaseColumnMinWidth = 300;
     public const double PhaseColumnSpacing = 20;
+    public const double PhasePadding = 10;
+
+    // Assembly group sizing
     public const double GroupHeaderHeight = 70;
-    public const double GroupPadding = 15;
+    public const double GroupHorizontalPadding = 10;
+    public const double GroupVerticalPadding = 15;
     public const double GroupSpacing = 20;
+    public const double MinGroupWidth = 280;
+
+    // Discipline row sizing
     public const double DisciplineLabelWidth = 60;
     public const double DisciplineRowHeight = 90;
     public const double DisciplineRowSpacing = 5;
+    public const double RowLeftPadding = 15;
+    public const double RowRightPadding = 15;
+
+    // Task node sizing
     public const double NodeWidth = 160;
     public const double NodeHeight = 70;
-    public const double NodeSpacing = 20;
+    public const double NodeSpacingX = 20;
+
+    // Overall content padding
     public const double ContentPadding = 20;
+
+    // Legacy alias for compatibility
+    public const double GroupPadding = GroupHorizontalPadding;
+    public const double NodeSpacing = NodeSpacingX;
+    #endregion
 
     private List<PhaseColumn> _phases = new();
 
@@ -102,20 +127,20 @@ public partial class PhaseMatrixLayoutEngine
             var phaseItems = phaseGroup.ToList();
             BuildAssemblyGroups(phase, phaseItems, items);
 
-            // Calculate phase dimensions
+            // Calculate phase dimensions based on content
+            // PhaseWidth = max(MinPhaseWidth, maxGroupWidth + PhasePadding * 2)
             if (phase.Groups.Count > 0)
             {
-                phase.Width = phase.Groups.Max(g => g.Width) + GroupPadding * 2;
+                double maxGroupWidth = phase.Groups.Max(g => g.Width);
+                phase.Width = Math.Max(PhaseColumnMinWidth, maxGroupWidth + PhasePadding * 2);
                 phase.Height = PhaseHeaderHeight + phase.Groups.Sum(g => g.Height) +
-                              (phase.Groups.Count - 1) * GroupSpacing + GroupPadding * 2;
+                              (phase.Groups.Count - 1) * GroupSpacing + GroupVerticalPadding * 2;
             }
             else
             {
                 phase.Width = PhaseColumnMinWidth;
-                phase.Height = PhaseHeaderHeight + GroupPadding * 2;
+                phase.Height = PhaseHeaderHeight + GroupVerticalPadding * 2;
             }
-
-            phase.Width = Math.Max(phase.Width, PhaseColumnMinWidth);
 
             _phases.Add(phase);
             currentX += phase.Width + PhaseColumnSpacing;
@@ -214,12 +239,12 @@ public partial class PhaseMatrixLayoutEngine
             .Where(i => !assignedItems.Contains(i.Id) && !i.IsMilestone)
             .ToList();
 
-        double currentY = phase.Y + PhaseHeaderHeight + GroupPadding;
+        double currentY = phase.Y + PhaseHeaderHeight + GroupVerticalPadding;
 
         // Build each assembly group
         foreach (var milestone in groupMilestones)
         {
-            var group = BuildAssemblyGroup(milestone, phase.X + GroupPadding, currentY, phaseItems, allItems);
+            var group = BuildAssemblyGroup(milestone, phase.X + PhasePadding, currentY, phaseItems, allItems);
             group.PhaseName = phase.PhaseName;
             phase.Groups.Add(group);
             currentY += group.Height + GroupSpacing;
@@ -228,7 +253,7 @@ public partial class PhaseMatrixLayoutEngine
         // Handle orphan items as a pseudo-group
         if (orphanItems.Count > 0)
         {
-            var orphanGroup = BuildOrphanGroup(orphanItems, phase.X + GroupPadding, currentY, allItems);
+            var orphanGroup = BuildOrphanGroup(orphanItems, phase.X + PhasePadding, currentY, allItems);
             orphanGroup.PhaseName = phase.PhaseName;
             phase.Groups.Add(orphanGroup);
         }
@@ -276,26 +301,35 @@ public partial class PhaseMatrixLayoutEngine
                 Items = disciplineGroup.OrderBy(t => ComputeLocalDepth(t, descendantTasks)).ThenBy(t => t.Title).ToList()
             };
 
-            // Position items within the row
-            double itemX = x + DisciplineLabelWidth + NodeSpacing;
+            int taskCount = row.Items.Count;
+
+            // Position items horizontally within the row
+            // Items start at: groupX + DisciplineLabelWidth + RowLeftPadding
+            double itemX = x + DisciplineLabelWidth + RowLeftPadding;
             foreach (var item in row.Items)
             {
                 item.X = itemX;
                 item.Y = rowY + (DisciplineRowHeight - NodeHeight) / 2;
-                itemX += NodeWidth + NodeSpacing;
+                itemX += NodeWidth + NodeSpacingX;
             }
 
-            double rowWidth = DisciplineLabelWidth + row.Items.Count * (NodeWidth + NodeSpacing) + NodeSpacing;
+            // Compute row width based on content
+            // RowWidth = DisciplineLabelWidth + RowLeftPadding + (taskCount * NodeWidth) + ((taskCount - 1) * NodeSpacingX) + RowRightPadding
+            double rowContentWidth = taskCount > 0
+                ? (taskCount * NodeWidth) + ((taskCount - 1) * NodeSpacingX)
+                : 0;
+            double rowWidth = DisciplineLabelWidth + RowLeftPadding + rowContentWidth + RowRightPadding;
             maxRowWidth = Math.Max(maxRowWidth, rowWidth);
 
             group.DisciplineRows.Add(row);
             rowY += DisciplineRowHeight + DisciplineRowSpacing;
         }
 
-        group.Width = Math.Max(maxRowWidth + GroupPadding * 2, PhaseColumnMinWidth - GroupPadding * 2);
+        // GroupWidth = max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2)
+        group.Width = Math.Max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2);
         group.Height = GroupHeaderHeight +
                       byDiscipline.Count * (DisciplineRowHeight + DisciplineRowSpacing) +
-                      GroupPadding;
+                      GroupVerticalPadding;
 
         return group;
     }
@@ -329,25 +363,33 @@ public partial class PhaseMatrixLayoutEngine
                 Items = disciplineGroup.OrderBy(t => t.Title).ToList()
             };
 
-            double itemX = x + DisciplineLabelWidth + NodeSpacing;
+            int taskCount = row.Items.Count;
+
+            // Position items horizontally within the row
+            double itemX = x + DisciplineLabelWidth + RowLeftPadding;
             foreach (var item in row.Items)
             {
                 item.X = itemX;
                 item.Y = rowY + (DisciplineRowHeight - NodeHeight) / 2;
-                itemX += NodeWidth + NodeSpacing;
+                itemX += NodeWidth + NodeSpacingX;
             }
 
-            double rowWidth = DisciplineLabelWidth + row.Items.Count * (NodeWidth + NodeSpacing) + NodeSpacing;
+            // Compute row width based on content
+            double rowContentWidth = taskCount > 0
+                ? (taskCount * NodeWidth) + ((taskCount - 1) * NodeSpacingX)
+                : 0;
+            double rowWidth = DisciplineLabelWidth + RowLeftPadding + rowContentWidth + RowRightPadding;
             maxRowWidth = Math.Max(maxRowWidth, rowWidth);
 
             group.DisciplineRows.Add(row);
             rowY += DisciplineRowHeight + DisciplineRowSpacing;
         }
 
-        group.Width = Math.Max(maxRowWidth + GroupPadding * 2, PhaseColumnMinWidth - GroupPadding * 2);
+        // GroupWidth = max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2)
+        group.Width = Math.Max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2);
         group.Height = GroupHeaderHeight +
                       byDiscipline.Count * (DisciplineRowHeight + DisciplineRowSpacing) +
-                      GroupPadding;
+                      GroupVerticalPadding;
 
         return group;
     }

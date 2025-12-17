@@ -149,6 +149,16 @@ Phase inheritance:
 - If no Phase exists anywhere, all items default to "Phase 1"
 - Phases are sorted numerically if they start with a number (e.g., "Phase 1", "Phase 2")
 
+Dynamic sizing rules:
+- **Discipline row width**: Computed based on task count
+  - `RowWidth = DisciplineLabelWidth + RowLeftPadding + (taskCount × NodeWidth) + ((taskCount - 1) × NodeSpacingX) + RowRightPadding`
+- **Assembly group width**: Grows to fit the widest discipline row
+  - `GroupWidth = max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding × 2)`
+- **Phase column width**: Grows to fit the widest assembly group
+  - `PhaseWidth = max(MinPhaseWidth, maxGroupWidth + PhasePadding × 2)`
+- Task cards maintain consistent width (160px) and spacing (20px)
+- No clipping: scrollbars enable full navigation when content exceeds viewport
+
 Edge toggle controls:
 - **Show Task Edges**: Toggle visibility of task-level dependency edges (default: ON)
 - **Milestone Edges Only**: Show only milestone-to-milestone edges for a decluttered view (default: OFF)

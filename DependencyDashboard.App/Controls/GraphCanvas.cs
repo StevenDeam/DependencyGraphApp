@@ -27,8 +27,8 @@ public class GraphCanvas : Canvas
 
     public GraphCanvas()
     {
-        Background = Brushes.White;
-        ClipToBounds = true;
+        Background = Brushes.Transparent;
+        ClipToBounds = false;
 
         _scaleTransform = new ScaleTransform(1, 1);
         _translateTransform = new TranslateTransform(0, 0);
@@ -908,16 +908,19 @@ public class GraphCanvas : Canvas
 
     private void DrawDisciplineRow(Canvas container, AssemblyGroupViewModel group, DisciplineRowViewModel row)
     {
-        // Row background
+        // Row background - spans from after discipline label to the end of the group
+        double rowBgLeft = group.X + PhaseMatrixLayoutEngine.DisciplineLabelWidth + PhaseMatrixLayoutEngine.GroupHorizontalPadding;
+        double rowBgWidth = group.Width - PhaseMatrixLayoutEngine.DisciplineLabelWidth - PhaseMatrixLayoutEngine.GroupHorizontalPadding * 2;
+
         var rowBg = new Rectangle
         {
-            Width = group.Width - PhaseMatrixLayoutEngine.DisciplineLabelWidth - 10,
+            Width = Math.Max(rowBgWidth, 50),
             Height = row.Height - 4,
             Fill = row.RowBackground,
             RadiusX = 2,
             RadiusY = 2
         };
-        Canvas.SetLeft(rowBg, group.X + PhaseMatrixLayoutEngine.DisciplineLabelWidth + 5);
+        Canvas.SetLeft(rowBg, rowBgLeft);
         Canvas.SetTop(rowBg, row.Y + 2);
         container.Children.Add(rowBg);
 
@@ -941,7 +944,7 @@ public class GraphCanvas : Canvas
         };
         labelBg.Child = label;
 
-        Canvas.SetLeft(labelBg, group.X + 3);
+        Canvas.SetLeft(labelBg, group.X + PhaseMatrixLayoutEngine.GroupHorizontalPadding);
         Canvas.SetTop(labelBg, row.Y + 4);
         container.Children.Add(labelBg);
     }

@@ -24,3 +24,4 @@ C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.App\obj\Debug\ne
 C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.App\obj\Debug\net9.0-windows\DependencyDashboard.App.pdb
 C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.App\obj\Debug\net9.0-windows\DependencyDashboard.App.genruntimeconfig.cache
 C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.App\obj\Debug\net9.0-windows\ref\DependencyDashboard.App.dll
+C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.App\obj\Debug\net9.0-windows\DependencyDashboard.App.sourcelink.json

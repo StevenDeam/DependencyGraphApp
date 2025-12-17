@@ -322,3 +322,43 @@ No automatic timeline generation
 No drag-to-reschedule behavior
 
 No multi-user editing
+
+
+Addendum: Phase Matrix Layout Visual Rules
+Phase Matrix Layout Rendering Rules (Visual Contract)
+
+Graph area must use full available tab space
+
+The Phase Matrix view must render starting at the top-left of the tab content area (below any error panel), with no inner framed/centered viewport.
+
+The graph background must be uniform across the entire available area (no faint “box” or inset region).
+
+Scrollbars are responsible for navigation; the canvas itself should not be visually bounded by a separate background rectangle unless it’s explicitly the same as the tab background.
+
+Phase columns must auto-size horizontally
+
+Each phase column width must be computed dynamically based on its contents.
+
+Minimum: PhaseMinWidth (configurable constant).
+
+Actual width: max(PhaseMinWidth, widestAssemblyGroupWidth + left/right padding).
+
+The phase header bar must stretch to the computed phase width.
+
+Assembly group width must be content-driven
+
+Within a phase, each assembly group (milestone container) must expand horizontally to fit its widest discipline row.
+
+Discipline rows lay out tasks horizontally with consistent spacing.
+
+No clipping is allowed. If content exceeds visible space, the ScrollViewer must enable navigation.
+
+No overlap / no forced compression
+
+The layout engine must not “squeeze” tasks by shrinking card widths to fit a fixed phase width.
+
+If content grows, the computed layout bounds must grow (canvas width/height), and the ScrollViewer should handle it.
+
+Performance guardrail
+
+Measuring widths should be deterministic and based on constants (card width, spacing) and counts of items, not runtime WPF “measure passes” per element.

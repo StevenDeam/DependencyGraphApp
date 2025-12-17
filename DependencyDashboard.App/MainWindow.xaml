@@ -197,7 +197,7 @@
                                       HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Auto"
                                       Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVisibilityConverter}}"
-                                      Background="#FAFAFA">
+                                      Background="White">
                             <controls:GraphCanvas x:Name="GraphCanvas"
                                                   WorkItems="{Binding FilteredWorkItems}"
                                                   Edges="{Binding FilteredEdges}"

@@ -9,3 +9,4 @@ C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.Core\obj\Debug\n
 C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.Core\obj\Debug\net9.0\refint\DependencyDashboard.Core.dll
 C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.Core\obj\Debug\net9.0\DependencyDashboard.Core.pdb
 C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.Core\obj\Debug\net9.0\ref\DependencyDashboard.Core.dll
+C:\Users\srdea\source\repos\DepencyGraphApp\DependencyDashboard.Core\obj\Debug\net9.0\DependencyDashboard.Core.sourcelink.json
