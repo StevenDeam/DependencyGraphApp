@@ -740,6 +740,7 @@ public class GraphCanvas : Canvas
         {
             foreach (var item in WorkItems)
             {
+                if (item.IsMilestone) continue;
                 DrawPhaseMatrixNode(container, item);
             }
         }
