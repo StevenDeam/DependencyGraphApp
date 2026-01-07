@@ -18,6 +18,7 @@ public class MainViewModel : ViewModelBase
     private bool _isLoaded;
     private string? _loadedFilePath;
     private ObservableCollection<PhaseColumnViewModel> _phaseColumns = new();
+    private Dictionary<string, bool> _collapseStates = new();
 
     public MainViewModel()
     {
@@ -127,8 +128,8 @@ public class MainViewModel : ViewModelBase
                 WorkItems.Add(vm);
             }
 
-            // Compute Phase Matrix layout
-            _service.RecomputeLayout(_collection, _collection.Items, GraphLayoutMode.PhaseMatrix);
+            // Compute Phase Matrix layout with current collapse states
+            _service.RecomputeLayout(_collection, _collection.Items, GraphLayoutMode.PhaseMatrix, _collapseStates);
 
             // Refresh positions after layout
             foreach (var vm in WorkItems)
@@ -136,11 +137,11 @@ public class MainViewModel : ViewModelBase
                 vm.Refresh();
             }
 
-            // Build phase column view models
+            // Build phase column view models with collapse callback
             _phaseColumns.Clear();
             foreach (var phase in _service.GetPhaseColumns())
             {
-                _phaseColumns.Add(new PhaseColumnViewModel(phase));
+                _phaseColumns.Add(new PhaseColumnViewModel(phase, OnGroupCollapseToggled));
             }
 
             // Build milestone edge view models for bracket rendering
@@ -158,6 +159,37 @@ public class MainViewModel : ViewModelBase
             StatusMessage = $"Error loading file: {ex.Message}";
             HasErrors = true;
             IsLoaded = false;
+        }
+    }
+
+    private void OnGroupCollapseToggled(AssemblyGroupViewModel group)
+    {
+        if (_collection == null) return;
+
+        // Update collapse states dictionary
+        _collapseStates[group.Id] = group.IsCollapsed;
+
+        // Recompute layout with updated collapse states
+        _service.RecomputeLayout(_collection, _collection.Items, GraphLayoutMode.PhaseMatrix, _collapseStates);
+
+        // Refresh work item positions
+        foreach (var vm in WorkItems)
+        {
+            vm.Refresh();
+        }
+
+        // Rebuild phase column view models (positions have changed)
+        _phaseColumns.Clear();
+        foreach (var phase in _service.GetPhaseColumns())
+        {
+            _phaseColumns.Add(new PhaseColumnViewModel(phase, OnGroupCollapseToggled));
+        }
+
+        // Rebuild milestone edge view models (positions have changed)
+        MilestoneEdges.Clear();
+        foreach (var edge in _service.GetMilestoneEdges())
+        {
+            MilestoneEdges.Add(new MilestoneEdgeViewModel(edge));
         }
     }
 }

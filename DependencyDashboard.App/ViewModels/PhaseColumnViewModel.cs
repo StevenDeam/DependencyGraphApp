@@ -7,10 +7,10 @@ public class PhaseColumnViewModel : ViewModelBase
 {
     private readonly PhaseColumn _phase;
 
-    public PhaseColumnViewModel(PhaseColumn phase)
+    public PhaseColumnViewModel(PhaseColumn phase, Action<AssemblyGroupViewModel>? onCollapseToggled = null)
     {
         _phase = phase;
-        Groups = phase.Groups.Select(g => new AssemblyGroupViewModel(g)).ToList();
+        Groups = phase.Groups.Select(g => new AssemblyGroupViewModel(g, onCollapseToggled)).ToList();
     }
 
     public PhaseColumn Phase => _phase;

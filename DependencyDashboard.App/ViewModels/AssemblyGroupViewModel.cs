@@ -1,5 +1,6 @@
 using DependencyDashboard.Core.Graph;
 using DependencyDashboard.Core.Models;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace DependencyDashboard.App.ViewModels;
@@ -7,11 +8,14 @@ namespace DependencyDashboard.App.ViewModels;
 public class AssemblyGroupViewModel : ViewModelBase
 {
     private readonly AssemblyGroup _group;
+    private readonly Action<AssemblyGroupViewModel>? _onCollapseToggled;
 
-    public AssemblyGroupViewModel(AssemblyGroup group)
+    public AssemblyGroupViewModel(AssemblyGroup group, Action<AssemblyGroupViewModel>? onCollapseToggled = null)
     {
         _group = group;
+        _onCollapseToggled = onCollapseToggled;
         DisciplineRows = group.DisciplineRows.Select(r => new DisciplineRowViewModel(r)).ToList();
+        ToggleCollapseCommand = new RelayCommand(ToggleCollapse);
     }
 
     public AssemblyGroup Group => _group;
@@ -19,13 +23,37 @@ public class AssemblyGroupViewModel : ViewModelBase
     public bool HasMilestone => _group.Milestone != null;
 
     public string Title => Milestone?.Title ?? "Unassigned Items";
-    public string Id => Milestone?.Id ?? "";
+    public string Id => Milestone?.Id ?? "__orphan__";
     public string DisplayHeader => HasMilestone ? $"{Title} ({Id})" : Title;
 
     public double X => _group.X;
     public double Y => _group.Y;
     public double Width => _group.Width;
     public double Height => _group.Height;
+
+    public bool IsCollapsed
+    {
+        get => _group.IsCollapsed;
+        set
+        {
+            if (_group.IsCollapsed != value)
+            {
+                _group.IsCollapsed = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CollapseButtonText));
+            }
+        }
+    }
+
+    public string CollapseButtonText => IsCollapsed ? "+" : "−";
+
+    public ICommand ToggleCollapseCommand { get; }
+
+    private void ToggleCollapse()
+    {
+        IsCollapsed = !IsCollapsed;
+        _onCollapseToggled?.Invoke(this);
+    }
 
     public double ComputedPercent => Milestone?.ComputedPercent ?? 0;
     public string DisplayPercent => $"{ComputedPercent:F0}%";

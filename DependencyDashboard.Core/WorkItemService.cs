@@ -64,9 +64,13 @@ public class WorkItemService
     /// <summary>
     /// Recomputes layout for a filtered subset of items.
     /// </summary>
-    public void RecomputeLayout(WorkItemCollection collection, IEnumerable<WorkItem> filteredItems, GraphLayoutMode layoutMode = GraphLayoutMode.PhaseMatrix)
+    /// <param name="collection">The work item collection.</param>
+    /// <param name="filteredItems">Items to include in layout.</param>
+    /// <param name="layoutMode">Layout mode to use.</param>
+    /// <param name="collapseStates">Optional dictionary of milestone IDs to collapse state.</param>
+    public void RecomputeLayout(WorkItemCollection collection, IEnumerable<WorkItem> filteredItems, GraphLayoutMode layoutMode = GraphLayoutMode.PhaseMatrix, Dictionary<string, bool>? collapseStates = null)
     {
-        _phaseMatrixLayoutEngine.ComputeLayout(collection, filteredItems);
+        _phaseMatrixLayoutEngine.ComputeLayout(collection, filteredItems, collapseStates);
     }
 
     /// <summary>

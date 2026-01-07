@@ -29,6 +29,8 @@ public class AssemblyGroup
     public double Y { get; set; }
     public double Width { get; set; }
     public double Height { get; set; }
+    public double ExpandedHeight { get; set; }
+    public bool IsCollapsed { get; set; }
     public List<DisciplineRow> DisciplineRows { get; set; } = new();
     public List<WorkItem> AllItems { get; set; } = new();
 }
@@ -65,6 +67,7 @@ public partial class PhaseMatrixLayoutEngine
 
     // Assembly group sizing
     public const double GroupHeaderHeight = 70;
+    public const double GroupCollapsedHeight = 50;
     public const double GroupHorizontalPadding = 10;
     public const double GroupVerticalPadding = 15;
     public const double GroupSpacing = 20;
@@ -100,13 +103,19 @@ public partial class PhaseMatrixLayoutEngine
     /// Computes Phase Matrix layout for all items in the collection.
     /// Supports tournament bracket positioning where successors are centered on predecessors.
     /// </summary>
-    public void ComputeLayout(WorkItemCollection collection, IEnumerable<WorkItem>? filteredItems = null)
+    /// <param name="collection">The work item collection.</param>
+    /// <param name="filteredItems">Optional filtered subset of items.</param>
+    /// <param name="collapseStates">Optional dictionary of milestone IDs to collapse state.</param>
+    public void ComputeLayout(WorkItemCollection collection, IEnumerable<WorkItem>? filteredItems = null, Dictionary<string, bool>? collapseStates = null)
     {
         _phases.Clear();
         _milestoneEdges.Clear();
 
         var items = (filteredItems ?? collection.Items).ToList();
         if (items.Count == 0) return;
+
+        // Use empty dictionary if no collapse states provided
+        collapseStates ??= new Dictionary<string, bool>();
 
         // Step 1: Compute phase inheritance
         ComputePhaseInheritance(items);
@@ -133,7 +142,7 @@ public partial class PhaseMatrixLayoutEngine
 
             // Build assembly groups with bracket-aware vertical positioning
             var phaseItems = phaseGroup.ToList();
-            BuildAssemblyGroupsWithBracket(phase, phaseItems, items, milestoneToGroup);
+            BuildAssemblyGroupsWithBracket(phase, phaseItems, items, milestoneToGroup, collapseStates);
 
             // Calculate phase dimensions based on content
             if (phase.Groups.Count > 0)
@@ -245,7 +254,8 @@ public partial class PhaseMatrixLayoutEngine
         PhaseColumn phase,
         List<WorkItem> phaseItems,
         List<WorkItem> allItems,
-        Dictionary<string, AssemblyGroup> milestoneToGroup)
+        Dictionary<string, AssemblyGroup> milestoneToGroup,
+        Dictionary<string, bool> collapseStates)
     {
         // Find milestones that have children as assembly groups
         var groupMilestones = phaseItems
@@ -278,7 +288,8 @@ public partial class PhaseMatrixLayoutEngine
         // First: position milestones WITHOUT milestone predecessors (stack normally)
         foreach (var milestone in milestonesWithoutMilestonePrereqs)
         {
-            var group = BuildAssemblyGroup(milestone, phase.X + PhasePadding, currentY, phaseItems, allItems);
+            bool isCollapsed = collapseStates.TryGetValue(milestone.Id, out var collapsed) && collapsed;
+            var group = BuildAssemblyGroup(milestone, phase.X + PhasePadding, currentY, phaseItems, allItems, isCollapsed);
             group.PhaseName = phase.PhaseName;
             phase.Groups.Add(group);
             milestoneToGroup[milestone.Id] = group;
@@ -288,6 +299,8 @@ public partial class PhaseMatrixLayoutEngine
         // Second: position milestones WITH milestone predecessors (center on predecessors)
         foreach (var milestone in milestonesWithMilestonePrereqs.OrderBy(m => m.Title))
         {
+            bool isCollapsed = collapseStates.TryGetValue(milestone.Id, out var collapsed) && collapsed;
+
             // Calculate target Y: midpoint of all predecessor groups
             var prereqGroups = milestone.Prerequisites
                 .Where(p => p.IsMilestone && milestoneToGroup.ContainsKey(p.Id))
@@ -302,7 +315,7 @@ public partial class PhaseMatrixLayoutEngine
                 double midpoint = (minY + maxY) / 2;
 
                 // Build a temporary group to determine its height
-                var tempGroup = BuildAssemblyGroup(milestone, phase.X + PhasePadding, 0, phaseItems, allItems);
+                var tempGroup = BuildAssemblyGroup(milestone, phase.X + PhasePadding, 0, phaseItems, allItems, isCollapsed);
                 targetY = midpoint - (tempGroup.Height / 2);
             }
             else
@@ -313,7 +326,7 @@ public partial class PhaseMatrixLayoutEngine
             // Ensure no overlap with existing groups (push down if needed)
             targetY = Math.Max(targetY, currentY);
 
-            var group = BuildAssemblyGroup(milestone, phase.X + PhasePadding, targetY, phaseItems, allItems);
+            var group = BuildAssemblyGroup(milestone, phase.X + PhasePadding, targetY, phaseItems, allItems, isCollapsed);
             group.PhaseName = phase.PhaseName;
             phase.Groups.Add(group);
             milestoneToGroup[milestone.Id] = group;
@@ -323,7 +336,8 @@ public partial class PhaseMatrixLayoutEngine
         // Handle orphan items as a pseudo-group
         if (orphanItems.Count > 0)
         {
-            var orphanGroup = BuildOrphanGroup(orphanItems, phase.X + PhasePadding, currentY, allItems);
+            bool isCollapsed = collapseStates.TryGetValue("__orphan__", out var collapsed) && collapsed;
+            var orphanGroup = BuildOrphanGroup(orphanItems, phase.X + PhasePadding, currentY, allItems, isCollapsed);
             orphanGroup.PhaseName = phase.PhaseName;
             phase.Groups.Add(orphanGroup);
         }
@@ -369,13 +383,14 @@ public partial class PhaseMatrixLayoutEngine
     }
 
     private AssemblyGroup BuildAssemblyGroup(WorkItem milestone, double x, double y,
-        List<WorkItem> phaseItems, List<WorkItem> allItems)
+        List<WorkItem> phaseItems, List<WorkItem> allItems, bool isCollapsed = false)
     {
         var group = new AssemblyGroup
         {
             Milestone = milestone,
             X = x,
-            Y = y
+            Y = y,
+            IsCollapsed = isCollapsed
         };
 
         // Get all descendant tasks in this phase
@@ -403,8 +418,7 @@ public partial class PhaseMatrixLayoutEngine
 
             int taskCount = row.Items.Count;
 
-            // Position items horizontally within the row
-            // Items start at: groupX + DisciplineLabelWidth + RowLeftPadding
+            // Position items horizontally within the row (even if collapsed, for potential later use)
             double itemX = x + DisciplineLabelWidth + RowLeftPadding;
             foreach (var item in row.Items)
             {
@@ -414,7 +428,6 @@ public partial class PhaseMatrixLayoutEngine
             }
 
             // Compute row width based on content
-            // RowWidth = DisciplineLabelWidth + RowLeftPadding + (taskCount * NodeWidth) + ((taskCount - 1) * NodeSpacingX) + RowRightPadding
             double rowContentWidth = taskCount > 0
                 ? (taskCount * NodeWidth) + ((taskCount - 1) * NodeSpacingX)
                 : 0;
@@ -427,21 +440,28 @@ public partial class PhaseMatrixLayoutEngine
 
         // GroupWidth = max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2)
         group.Width = Math.Max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2);
-        group.Height = GroupHeaderHeight +
+
+        // Calculate expanded height
+        double expandedHeight = GroupHeaderHeight +
                       byDiscipline.Count * (DisciplineRowHeight + DisciplineRowSpacing) +
                       GroupVerticalPadding;
+        group.ExpandedHeight = expandedHeight;
+
+        // Use collapsed or expanded height
+        group.Height = isCollapsed ? GroupCollapsedHeight : expandedHeight;
 
         return group;
     }
 
-    private AssemblyGroup BuildOrphanGroup(List<WorkItem> orphanItems, double x, double y, List<WorkItem> allItems)
+    private AssemblyGroup BuildOrphanGroup(List<WorkItem> orphanItems, double x, double y, List<WorkItem> allItems, bool isCollapsed = false)
     {
         var group = new AssemblyGroup
         {
             Milestone = null!,
             X = x,
             Y = y,
-            AllItems = orphanItems
+            AllItems = orphanItems,
+            IsCollapsed = isCollapsed
         };
 
         // Group by discipline
@@ -487,9 +507,15 @@ public partial class PhaseMatrixLayoutEngine
 
         // GroupWidth = max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2)
         group.Width = Math.Max(MinGroupWidth, maxRowWidth + GroupHorizontalPadding * 2);
-        group.Height = GroupHeaderHeight +
+
+        // Calculate expanded height
+        double expandedHeight = GroupHeaderHeight +
                       byDiscipline.Count * (DisciplineRowHeight + DisciplineRowSpacing) +
                       GroupVerticalPadding;
+        group.ExpandedHeight = expandedHeight;
+
+        // Use collapsed or expanded height
+        group.Height = isCollapsed ? GroupCollapsedHeight : expandedHeight;
 
         return group;
     }

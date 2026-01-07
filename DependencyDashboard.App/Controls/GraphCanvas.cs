@@ -149,10 +149,23 @@ public class GraphCanvas : Canvas
             }
         }
 
-        // Draw task nodes
+        // Build set of item IDs in collapsed groups
+        var collapsedItemIds = new HashSet<string>();
+        foreach (var phase in PhaseColumns)
+        {
+            foreach (var group in phase.Groups.Where(g => g.IsCollapsed))
+            {
+                foreach (var item in group.AllItems)
+                {
+                    collapsedItemIds.Add(item.Id);
+                }
+            }
+        }
+
+        // Draw task nodes (skip items in collapsed groups)
         if (WorkItems != null)
         {
-            foreach (var item in WorkItems.Where(i => !i.IsMilestone))
+            foreach (var item in WorkItems.Where(i => !i.IsMilestone && !collapsedItemIds.Contains(i.Id)))
             {
                 DrawTaskNode(item);
             }
@@ -297,11 +310,15 @@ public class GraphCanvas : Canvas
         SetTop(groupBg, group.Y);
         Children.Add(groupBg);
 
-        // Group header background
+        // Group header background (smaller when collapsed)
+        double headerHeight = group.IsCollapsed
+            ? PhaseMatrixLayoutEngine.GroupCollapsedHeight - 6
+            : PhaseMatrixLayoutEngine.GroupHeaderHeight - 10;
+
         var headerBg = new Rectangle
         {
             Width = group.Width - 4,
-            Height = PhaseMatrixLayoutEngine.GroupHeaderHeight - 10,
+            Height = headerHeight,
             Fill = group.HeaderBackground,
             RadiusX = 3,
             RadiusY = 3
@@ -310,8 +327,27 @@ public class GraphCanvas : Canvas
         SetTop(headerBg, group.Y + 2);
         Children.Add(headerBg);
 
-        // Group header content
-        var headerPanel = new StackPanel { Width = group.Width - 20 };
+        // Collapse/expand button
+        var collapseButton = new Button
+        {
+            Content = group.CollapseButtonText,
+            Width = 20,
+            Height = 20,
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            Padding = new Thickness(0),
+            Background = new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)),
+            BorderBrush = Brushes.Transparent,
+            Foreground = Brushes.Black,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Command = group.ToggleCollapseCommand
+        };
+        SetLeft(collapseButton, group.X + group.Width - 26);
+        SetTop(collapseButton, group.Y + 6);
+        Children.Add(collapseButton);
+
+        // Group header content (adjust width for collapse button)
+        var headerPanel = new StackPanel { Width = group.Width - 50 };
 
         // Title
         var title = new TextBlock
@@ -377,6 +413,19 @@ public class GraphCanvas : Canvas
                 infoPanel.Children.Add(dateText);
             }
 
+            // Show task count when collapsed
+            if (group.IsCollapsed)
+            {
+                var countText = new TextBlock
+                {
+                    Text = $"({group.AllItems.Count} tasks)",
+                    FontSize = 9,
+                    Foreground = new SolidColorBrush(Color.FromRgb(180, 180, 180)),
+                    Margin = new Thickness(8, 2, 0, 0)
+                };
+                infoPanel.Children.Add(countText);
+            }
+
             headerPanel.Children.Add(infoPanel);
         }
 
@@ -384,10 +433,13 @@ public class GraphCanvas : Canvas
         SetTop(headerPanel, group.Y + 6);
         Children.Add(headerPanel);
 
-        // Draw discipline rows
-        foreach (var row in group.DisciplineRows)
+        // Only draw discipline rows if not collapsed
+        if (!group.IsCollapsed)
         {
-            DrawDisciplineRow(group, row);
+            foreach (var row in group.DisciplineRows)
+            {
+                DrawDisciplineRow(group, row);
+            }
         }
     }
 
