@@ -19,6 +19,12 @@ public class MainViewModel : ViewModelBase
     private string? _loadedFilePath;
     private ObservableCollection<PhaseColumnViewModel> _phaseColumns = new();
     private Dictionary<string, bool> _collapseStates = new();
+    private bool _isFitToScreen;
+    private double _zoomScale = 1.0;
+    private double _viewportWidth;
+    private double _viewportHeight;
+    private double _contentWidth;
+    private double _contentHeight;
 
     public MainViewModel()
     {
@@ -30,6 +36,7 @@ public class MainViewModel : ViewModelBase
 
         OpenCommand = new RelayCommand(OpenFile);
         ReloadCommand = new RelayCommand(ReloadFile, () => _loadedFilePath != null);
+        ToggleFitToScreenCommand = new RelayCommand(ToggleFitToScreen);
     }
 
     public ObservableCollection<WorkItemViewModel> WorkItems { get; }
@@ -39,6 +46,30 @@ public class MainViewModel : ViewModelBase
 
     public ICommand OpenCommand { get; }
     public ICommand ReloadCommand { get; }
+    public ICommand ToggleFitToScreenCommand { get; }
+
+    public bool IsFitToScreen
+    {
+        get => _isFitToScreen;
+        set
+        {
+            if (SetProperty(ref _isFitToScreen, value))
+            {
+                RecalculateZoomScale();
+                OnPropertyChanged(nameof(FitToScreenButtonText));
+            }
+        }
+    }
+
+    public double ZoomScale
+    {
+        get => _zoomScale;
+        private set => SetProperty(ref _zoomScale, value);
+    }
+
+    public string FitToScreenButtonText => IsFitToScreen ? "100%" : "Fit";
+
+    public string ZoomPercentText => $"{ZoomScale * 100:F0}%";
 
     public string StatusMessage
     {
@@ -191,5 +222,72 @@ public class MainViewModel : ViewModelBase
         {
             MilestoneEdges.Add(new MilestoneEdgeViewModel(edge));
         }
+
+        // Recalculate zoom if fit-to-screen is active
+        if (IsFitToScreen)
+        {
+            RecalculateZoomScale();
+        }
+    }
+
+    private void ToggleFitToScreen()
+    {
+        IsFitToScreen = !IsFitToScreen;
+    }
+
+    /// <summary>
+    /// Called by the view when viewport size changes or content dimensions change.
+    /// </summary>
+    public void UpdateViewportSize(double viewportWidth, double viewportHeight)
+    {
+        _viewportWidth = viewportWidth;
+        _viewportHeight = viewportHeight;
+
+        if (IsFitToScreen)
+        {
+            RecalculateZoomScale();
+        }
+    }
+
+    /// <summary>
+    /// Called by the view when content dimensions change.
+    /// </summary>
+    public void UpdateContentSize(double contentWidth, double contentHeight)
+    {
+        _contentWidth = contentWidth;
+        _contentHeight = contentHeight;
+
+        if (IsFitToScreen)
+        {
+            RecalculateZoomScale();
+        }
+    }
+
+    private void RecalculateZoomScale()
+    {
+        if (!IsFitToScreen)
+        {
+            ZoomScale = 1.0;
+            OnPropertyChanged(nameof(ZoomPercentText));
+            return;
+        }
+
+        if (_contentWidth <= 0 || _contentHeight <= 0 ||
+            _viewportWidth <= 0 || _viewportHeight <= 0)
+        {
+            ZoomScale = 1.0;
+            OnPropertyChanged(nameof(ZoomPercentText));
+            return;
+        }
+
+        double scaleX = _viewportWidth / _contentWidth;
+        double scaleY = _viewportHeight / _contentHeight;
+
+        // Use the smaller scale to fit entire content, with 5% margin
+        double scale = Math.Min(scaleX, scaleY) * 0.95;
+
+        // Don't zoom in beyond 100%
+        ZoomScale = Math.Min(scale, 1.0);
+        OnPropertyChanged(nameof(ZoomPercentText));
     }
 }

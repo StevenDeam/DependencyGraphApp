@@ -13,12 +13,24 @@ namespace DependencyDashboard.App.Controls;
 public class GraphCanvas : Canvas
 {
     private const double ContentPadding = 20;
+    private double _contentWidth;
+    private double _contentHeight;
 
     public GraphCanvas()
     {
         Background = Brushes.Transparent;
         ClipToBounds = false;
     }
+
+    /// <summary>
+    /// Gets the calculated content width (for fit-to-screen calculations).
+    /// </summary>
+    public double ContentWidth => _contentWidth;
+
+    /// <summary>
+    /// Gets the calculated content height (for fit-to-screen calculations).
+    /// </summary>
+    public double ContentHeight => _contentHeight;
 
     #region Dependency Properties
 
@@ -119,17 +131,19 @@ public class GraphCanvas : Canvas
 
         if (PhaseColumns == null || PhaseColumns.Count == 0)
         {
-            Width = 800;
-            Height = 600;
+            _contentWidth = 800;
+            _contentHeight = 600;
+            Width = _contentWidth;
+            Height = _contentHeight;
             return;
         }
 
-        var (contentWidth, contentHeight) = CalculateBounds();
-        contentWidth += ContentPadding;
-        contentHeight += ContentPadding;
+        var (calcWidth, calcHeight) = CalculateBounds();
+        _contentWidth = calcWidth + ContentPadding;
+        _contentHeight = calcHeight + ContentPadding;
 
-        Width = contentWidth;
-        Height = contentHeight;
+        Width = _contentWidth;
+        Height = _contentHeight;
 
         // Draw milestone edges FIRST (behind everything else)
         DrawMilestoneEdges();

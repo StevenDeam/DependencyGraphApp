@@ -22,12 +22,22 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Top Bar: Open CSV only -->
+        <!-- Top Bar: Open CSV and Zoom -->
         <Border Grid.Row="0" Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8">
-            <StackPanel Orientation="Horizontal">
-                <Button Content="Open CSV" Command="{Binding OpenCommand}" Padding="12,6" Margin="0,0,8,0"/>
-                <Button Content="Reload (F5)" Command="{Binding ReloadCommand}" Padding="12,6"/>
-            </StackPanel>
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button Content="Open CSV" Command="{Binding OpenCommand}" Padding="12,6" Margin="0,0,8,0"/>
+                    <Button Content="Reload (F5)" Command="{Binding ReloadCommand}" Padding="12,6"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding ZoomPercentText}" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray"/>
+                    <Button Content="{Binding FitToScreenButtonText}"
+                            Command="{Binding ToggleFitToScreenCommand}"
+                            Padding="12,6"
+                            ToolTip="Toggle fit-to-screen view"/>
+                </StackPanel>
+                <Border/>
+            </DockPanel>
         </Border>
 
         <!-- Main Content Area -->
@@ -99,14 +109,19 @@
                 </Border>
 
                 <!-- Graph Canvas with ScrollViewer -->
-                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                <ScrollViewer x:Name="GraphScrollViewer"
+                              HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding IsLoaded, Converter={StaticResource BoolToVisibilityConverter}}"
                               Background="White">
                     <controls:GraphCanvas x:Name="GraphCanvas"
                                           WorkItems="{Binding WorkItems}"
                                           PhaseColumns="{Binding PhaseColumns}"
-                                          MilestoneEdges="{Binding MilestoneEdges}"/>
+                                          MilestoneEdges="{Binding MilestoneEdges}">
+                        <controls:GraphCanvas.LayoutTransform>
+                            <ScaleTransform ScaleX="{Binding ZoomScale}" ScaleY="{Binding ZoomScale}"/>
+                        </controls:GraphCanvas.LayoutTransform>
+                    </controls:GraphCanvas>
                 </ScrollViewer>
 
                 <!-- Empty State -->
