@@ -4,8 +4,10 @@ DependencyDashboard.Core/nul
 #############################
 # Build results
 #############################
-bin/
-obj/
+[Dd]ebug/
+[Rr]elease/
+**/[Bb]in/
+**/[Oo]bj/
 [Bb]uild/
 [Bb]uilds/
 artifacts/
