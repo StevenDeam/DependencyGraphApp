@@ -13,7 +13,8 @@ public class WorkItem
     public int PercentCompleteRaw { get; set; }
     public int Weight { get; set; }
     public string? ParentId { get; set; }
-    public string? PrereqId { get; set; }
+    public string? PrereqId { get; set; }  // Backward compat: first prereq ID
+    public List<string> PrereqIds { get; set; } = new();  // All prereq IDs (parsed from comma-separated)
     public DateTime? TargetDate { get; set; }
     public bool IsNA { get; set; }
     public int? Level { get; set; }
@@ -35,7 +36,8 @@ public class WorkItem
 
     // Navigation references (set during graph building)
     public WorkItem? Parent { get; set; }
-    public WorkItem? Prerequisite { get; set; }
+    public WorkItem? Prerequisite { get; set; }  // Backward compat: first prerequisite
+    public List<WorkItem> Prerequisites { get; } = new();  // All prerequisites (for multi-prereq support)
     public List<WorkItem> Children { get; } = new();
     public List<WorkItem> Dependents { get; } = new();
 

@@ -105,7 +105,8 @@
                               Background="White">
                     <controls:GraphCanvas x:Name="GraphCanvas"
                                           WorkItems="{Binding WorkItems}"
-                                          PhaseColumns="{Binding PhaseColumns}"/>
+                                          PhaseColumns="{Binding PhaseColumns}"
+                                          MilestoneEdges="{Binding MilestoneEdges}"/>
                 </ScrollViewer>
 
                 <!-- Empty State -->

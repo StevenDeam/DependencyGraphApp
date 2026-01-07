@@ -78,6 +78,14 @@ public class WorkItemService
     }
 
     /// <summary>
+    /// Gets milestone-to-milestone edges for bracket rendering.
+    /// </summary>
+    public IReadOnlyList<MilestoneEdge> GetMilestoneEdges()
+    {
+        return _phaseMatrixLayoutEngine.MilestoneEdges;
+    }
+
+    /// <summary>
     /// Gets phase matrix layout bounds.
     /// </summary>
     public (double Width, double Height) GetPhaseMatrixBounds()

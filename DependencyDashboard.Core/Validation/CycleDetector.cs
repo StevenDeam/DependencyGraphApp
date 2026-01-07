@@ -49,10 +49,9 @@ public class CycleDetector
         recursionStack.Add(item.Id);
         path.Add(item.Id);
 
-        // Follow the prerequisite chain
-        if (item.Prerequisite != null)
+        // Follow all prerequisite chains (supports multiple prerequisites)
+        foreach (var prereq in item.Prerequisites)
         {
-            var prereq = item.Prerequisite;
             if (!visited.Contains(prereq.Id))
             {
                 DetectCycleDFS(prereq, visited, recursionStack, path, cycles);
@@ -107,9 +106,10 @@ public class CycleDetector
         visited.Add(item.Id);
         recursionStack.Add(item.Id);
 
-        if (item.Prerequisite != null)
+        // Check all prerequisites (supports multiple prerequisites)
+        foreach (var prereq in item.Prerequisites)
         {
-            if (HasCycleDFS(item.Prerequisite, visited, recursionStack))
+            if (HasCycleDFS(prereq, visited, recursionStack))
             {
                 return true;
             }

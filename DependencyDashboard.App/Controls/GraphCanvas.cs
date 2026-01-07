@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Linq;
 
 namespace DependencyDashboard.App.Controls;
 
@@ -29,6 +30,10 @@ public class GraphCanvas : Canvas
         DependencyProperty.Register(nameof(PhaseColumns), typeof(ObservableCollection<PhaseColumnViewModel>),
             typeof(GraphCanvas), new PropertyMetadata(null, OnPhaseColumnsChanged));
 
+    public static readonly DependencyProperty MilestoneEdgesProperty =
+        DependencyProperty.Register(nameof(MilestoneEdges), typeof(ObservableCollection<MilestoneEdgeViewModel>),
+            typeof(GraphCanvas), new PropertyMetadata(null, OnMilestoneEdgesChanged));
+
     public ObservableCollection<WorkItemViewModel> WorkItems
     {
         get => (ObservableCollection<WorkItemViewModel>)GetValue(WorkItemsProperty);
@@ -39,6 +44,12 @@ public class GraphCanvas : Canvas
     {
         get => (ObservableCollection<PhaseColumnViewModel>)GetValue(PhaseColumnsProperty);
         set => SetValue(PhaseColumnsProperty, value);
+    }
+
+    public ObservableCollection<MilestoneEdgeViewModel> MilestoneEdges
+    {
+        get => (ObservableCollection<MilestoneEdgeViewModel>)GetValue(MilestoneEdgesProperty);
+        set => SetValue(MilestoneEdgesProperty, value);
     }
 
     #endregion
@@ -62,6 +73,22 @@ public class GraphCanvas : Canvas
     }
 
     private static void OnPhaseColumnsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is GraphCanvas canvas)
+        {
+            if (e.OldValue is INotifyCollectionChanged oldCollection)
+            {
+                oldCollection.CollectionChanged -= canvas.OnCollectionChanged;
+            }
+            if (e.NewValue is INotifyCollectionChanged newCollection)
+            {
+                newCollection.CollectionChanged += canvas.OnCollectionChanged;
+            }
+            canvas.RebuildVisuals();
+        }
+    }
+
+    private static void OnMilestoneEdgesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is GraphCanvas canvas)
         {
@@ -104,6 +131,9 @@ public class GraphCanvas : Canvas
         Width = contentWidth;
         Height = contentHeight;
 
+        // Draw milestone edges FIRST (behind everything else)
+        DrawMilestoneEdges();
+
         // Draw phase column backgrounds
         foreach (var phase in PhaseColumns)
         {
@@ -122,12 +152,74 @@ public class GraphCanvas : Canvas
         // Draw task nodes
         if (WorkItems != null)
         {
-            foreach (var item in WorkItems)
+            foreach (var item in WorkItems.Where(i => !i.IsMilestone))
             {
-                if (item.IsMilestone) continue;
                 DrawTaskNode(item);
             }
         }
+    }
+
+    private void DrawMilestoneEdges()
+    {
+        if (MilestoneEdges == null || MilestoneEdges.Count == 0) return;
+
+        foreach (var edge in MilestoneEdges)
+        {
+            DrawMilestoneEdge(edge);
+        }
+    }
+
+    private void DrawMilestoneEdge(MilestoneEdgeViewModel edge)
+    {
+        // Manhattan routing: horizontal from source, then vertical, then horizontal to target
+        double fromX = edge.FromX;
+        double fromY = edge.FromY;
+        double toX = edge.ToX;
+        double toY = edge.ToY;
+
+        // Midpoint X for the vertical segment
+        double midX = (fromX + toX) / 2;
+
+        var path = new Path
+        {
+            Stroke = edge.LineBrush,
+            StrokeThickness = edge.LineThickness,
+            StrokeLineJoin = PenLineJoin.Round
+        };
+
+        var geometry = new PathGeometry();
+        var figure = new PathFigure { StartPoint = new Point(fromX, fromY) };
+
+        // Horizontal to midpoint
+        figure.Segments.Add(new LineSegment(new Point(midX, fromY), true));
+        // Vertical to target Y
+        figure.Segments.Add(new LineSegment(new Point(midX, toY), true));
+        // Horizontal to target
+        figure.Segments.Add(new LineSegment(new Point(toX, toY), true));
+
+        geometry.Figures.Add(figure);
+        path.Data = geometry;
+
+        Children.Add(path);
+
+        // Draw arrowhead at the end
+        DrawArrowhead(toX, toY, edge.LineBrush);
+    }
+
+    private void DrawArrowhead(double x, double y, Brush brush)
+    {
+        double arrowSize = 8;
+        var arrow = new Polygon
+        {
+            Fill = brush,
+            Points = new PointCollection
+            {
+                new Point(x, y),
+                new Point(x - arrowSize, y - arrowSize / 2),
+                new Point(x - arrowSize, y + arrowSize / 2)
+            }
+        };
+        Children.Add(arrow);
     }
 
     private (double Width, double Height) CalculateBounds()

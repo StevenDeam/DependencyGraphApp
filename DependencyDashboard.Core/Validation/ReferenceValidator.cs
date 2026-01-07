@@ -32,17 +32,17 @@ public class ReferenceValidator
                 }
             }
 
-            // Validate and link PrereqId
-            if (!string.IsNullOrEmpty(item.PrereqId))
+            // Validate and link PrereqIds (supports multiple prerequisites)
+            foreach (var prereqId in item.PrereqIds)
             {
-                if (itemsById.TryGetValue(item.PrereqId, out var prereq))
+                if (itemsById.TryGetValue(prereqId, out var prereq))
                 {
-                    item.Prerequisite = prereq;
+                    item.Prerequisites.Add(prereq);
                     prereq.Dependents.Add(item);
 
                     collection.DependencyEdges.Add(new DependencyEdge
                     {
-                        PrereqId = item.PrereqId,
+                        PrereqId = prereqId,
                         DependentId = item.Id,
                         Prerequisite = prereq,
                         Dependent = item
@@ -54,10 +54,13 @@ public class ReferenceValidator
                     {
                         Row = GetRowNumber(collection, item),
                         Column = "PrereqId",
-                        Message = $"PrereqId '{item.PrereqId}' references non-existent item"
+                        Message = $"PrereqId '{prereqId}' references non-existent item"
                     });
                 }
             }
+
+            // Set backward-compat single Prerequisite to first
+            item.Prerequisite = item.Prerequisites.FirstOrDefault();
         }
     }
 

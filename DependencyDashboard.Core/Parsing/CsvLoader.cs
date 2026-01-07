@@ -238,9 +238,15 @@ public class CsvLoader
         var parentId = GetValue(values, columnIndex, "ParentId")?.Trim();
         item.ParentId = string.IsNullOrWhiteSpace(parentId) ? null : parentId;
 
-        // PrereqId (optional)
-        var prereqId = GetValue(values, columnIndex, "PrereqId")?.Trim();
-        item.PrereqId = string.IsNullOrWhiteSpace(prereqId) ? null : prereqId;
+        // PrereqId (optional, supports comma-separated for multiple prerequisites)
+        var prereqIdRaw = GetValue(values, columnIndex, "PrereqId")?.Trim() ?? "";
+        if (!string.IsNullOrWhiteSpace(prereqIdRaw))
+        {
+            // Support comma-separated prerequisites
+            var ids = prereqIdRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            item.PrereqIds = ids.ToList();
+            item.PrereqId = ids.FirstOrDefault(); // Backward compat: first one
+        }
 
         // TargetDate (required for milestones)
         var targetDateStr = GetValue(values, columnIndex, "TargetDate")?.Trim() ?? "";

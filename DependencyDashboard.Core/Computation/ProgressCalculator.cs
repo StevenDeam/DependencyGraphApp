@@ -125,11 +125,12 @@ public class ProgressCalculator
             return;
         }
 
-        // Check if blocked
-        if (item.Prerequisite != null && item.Prerequisite.ComputedStatus != WorkItemStatus.Done)
+        // Check if blocked (any prerequisite not Done causes blocked status)
+        var blockingPrereq = item.Prerequisites.FirstOrDefault(p => p.ComputedStatus != WorkItemStatus.Done);
+        if (blockingPrereq != null)
         {
             item.ComputedStatus = WorkItemStatus.Blocked;
-            item.BlockedById = item.PrereqId;
+            item.BlockedById = blockingPrereq.Id;
             return;
         }
 

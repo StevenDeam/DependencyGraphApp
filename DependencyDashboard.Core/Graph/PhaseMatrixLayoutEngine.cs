@@ -1,5 +1,6 @@
 using DependencyDashboard.Core.Models;
 using System.Text.RegularExpressions;
+using System.Linq;
 
 namespace DependencyDashboard.Core.Graph;
 
@@ -90,15 +91,20 @@ public partial class PhaseMatrixLayoutEngine
     #endregion
 
     private List<PhaseColumn> _phases = new();
+    private List<MilestoneEdge> _milestoneEdges = new();
 
     public IReadOnlyList<PhaseColumn> Phases => _phases;
+    public IReadOnlyList<MilestoneEdge> MilestoneEdges => _milestoneEdges;
 
     /// <summary>
     /// Computes Phase Matrix layout for all items in the collection.
+    /// Supports tournament bracket positioning where successors are centered on predecessors.
     /// </summary>
     public void ComputeLayout(WorkItemCollection collection, IEnumerable<WorkItem>? filteredItems = null)
     {
         _phases.Clear();
+        _milestoneEdges.Clear();
+
         var items = (filteredItems ?? collection.Items).ToList();
         if (items.Count == 0) return;
 
@@ -111,6 +117,8 @@ public partial class PhaseMatrixLayoutEngine
             .OrderBy(g => GetPhaseOrder(g.Key))
             .ToList();
 
+        // Track milestone-to-group mapping across all phases for bracket positioning
+        var milestoneToGroup = new Dictionary<string, AssemblyGroup>();
         double currentX = ContentPadding;
 
         foreach (var phaseGroup in phaseGroups)
@@ -123,18 +131,19 @@ public partial class PhaseMatrixLayoutEngine
                 Y = ContentPadding
             };
 
-            // Build assembly groups within this phase
+            // Build assembly groups with bracket-aware vertical positioning
             var phaseItems = phaseGroup.ToList();
-            BuildAssemblyGroups(phase, phaseItems, items);
+            BuildAssemblyGroupsWithBracket(phase, phaseItems, items, milestoneToGroup);
 
             // Calculate phase dimensions based on content
-            // PhaseWidth = max(MinPhaseWidth, maxGroupWidth + PhasePadding * 2)
             if (phase.Groups.Count > 0)
             {
                 double maxGroupWidth = phase.Groups.Max(g => g.Width);
                 phase.Width = Math.Max(PhaseColumnMinWidth, maxGroupWidth + PhasePadding * 2);
-                phase.Height = PhaseHeaderHeight + phase.Groups.Sum(g => g.Height) +
-                              (phase.Groups.Count - 1) * GroupSpacing + GroupVerticalPadding * 2;
+
+                // Height based on actual group positions (for bracket layout)
+                double maxGroupBottom = phase.Groups.Max(g => g.Y + g.Height);
+                phase.Height = maxGroupBottom - phase.Y + GroupVerticalPadding;
             }
             else
             {
@@ -146,7 +155,16 @@ public partial class PhaseMatrixLayoutEngine
             currentX += phase.Width + PhaseColumnSpacing;
         }
 
-        // Normalize phase heights to be consistent
+        // Normalize phase heights and compute milestone edges
+        NormalizePhaseHeights();
+        ComputeMilestoneEdges(milestoneToGroup);
+    }
+
+    /// <summary>
+    /// Normalizes all phase columns to have the same height.
+    /// </summary>
+    private void NormalizePhaseHeights()
+    {
         if (_phases.Count > 0)
         {
             double maxHeight = _phases.Max(p => p.Height);
@@ -219,11 +237,27 @@ public partial class PhaseMatrixLayoutEngine
     [GeneratedRegex(@"^(?:Phase\s*)?(\d+)", RegexOptions.IgnoreCase)]
     private static partial Regex PhaseNumberRegex();
 
-    private void BuildAssemblyGroups(PhaseColumn phase, List<WorkItem> phaseItems, List<WorkItem> allItems)
+    /// <summary>
+    /// Builds assembly groups with tournament bracket-aware vertical positioning.
+    /// Milestones with predecessor milestones are centered on their predecessors.
+    /// </summary>
+    private void BuildAssemblyGroupsWithBracket(
+        PhaseColumn phase,
+        List<WorkItem> phaseItems,
+        List<WorkItem> allItems,
+        Dictionary<string, AssemblyGroup> milestoneToGroup)
     {
         // Find milestones that have children as assembly groups
         var groupMilestones = phaseItems
             .Where(i => i.IsMilestone && i.Children.Any(c => phaseItems.Contains(c)))
+            .ToList();
+
+        // Separate milestones with milestone prerequisites (need centering) from those without
+        var milestonesWithMilestonePrereqs = groupMilestones
+            .Where(m => m.Prerequisites.Any(p => p.IsMilestone && milestoneToGroup.ContainsKey(p.Id)))
+            .ToList();
+        var milestonesWithoutMilestonePrereqs = groupMilestones
+            .Except(milestonesWithMilestonePrereqs)
             .OrderBy(m => m.Title)
             .ToList();
 
@@ -241,13 +275,49 @@ public partial class PhaseMatrixLayoutEngine
 
         double currentY = phase.Y + PhaseHeaderHeight + GroupVerticalPadding;
 
-        // Build each assembly group
-        foreach (var milestone in groupMilestones)
+        // First: position milestones WITHOUT milestone predecessors (stack normally)
+        foreach (var milestone in milestonesWithoutMilestonePrereqs)
         {
             var group = BuildAssemblyGroup(milestone, phase.X + PhasePadding, currentY, phaseItems, allItems);
             group.PhaseName = phase.PhaseName;
             phase.Groups.Add(group);
+            milestoneToGroup[milestone.Id] = group;
             currentY += group.Height + GroupSpacing;
+        }
+
+        // Second: position milestones WITH milestone predecessors (center on predecessors)
+        foreach (var milestone in milestonesWithMilestonePrereqs.OrderBy(m => m.Title))
+        {
+            // Calculate target Y: midpoint of all predecessor groups
+            var prereqGroups = milestone.Prerequisites
+                .Where(p => p.IsMilestone && milestoneToGroup.ContainsKey(p.Id))
+                .Select(p => milestoneToGroup[p.Id])
+                .ToList();
+
+            double targetY;
+            if (prereqGroups.Count > 0)
+            {
+                double minY = prereqGroups.Min(g => g.Y);
+                double maxY = prereqGroups.Max(g => g.Y + g.Height);
+                double midpoint = (minY + maxY) / 2;
+
+                // Build a temporary group to determine its height
+                var tempGroup = BuildAssemblyGroup(milestone, phase.X + PhasePadding, 0, phaseItems, allItems);
+                targetY = midpoint - (tempGroup.Height / 2);
+            }
+            else
+            {
+                targetY = currentY;
+            }
+
+            // Ensure no overlap with existing groups (push down if needed)
+            targetY = Math.Max(targetY, currentY);
+
+            var group = BuildAssemblyGroup(milestone, phase.X + PhasePadding, targetY, phaseItems, allItems);
+            group.PhaseName = phase.PhaseName;
+            phase.Groups.Add(group);
+            milestoneToGroup[milestone.Id] = group;
+            currentY = group.Y + group.Height + GroupSpacing;
         }
 
         // Handle orphan items as a pseudo-group
@@ -256,6 +326,36 @@ public partial class PhaseMatrixLayoutEngine
             var orphanGroup = BuildOrphanGroup(orphanItems, phase.X + PhasePadding, currentY, allItems);
             orphanGroup.PhaseName = phase.PhaseName;
             phase.Groups.Add(orphanGroup);
+        }
+    }
+
+    /// <summary>
+    /// Computes visual edges between milestone groups for bracket rendering.
+    /// </summary>
+    private void ComputeMilestoneEdges(Dictionary<string, AssemblyGroup> milestoneToGroup)
+    {
+        foreach (var (milestoneId, group) in milestoneToGroup)
+        {
+            var milestone = group.Milestone;
+            if (milestone == null) continue;
+
+            foreach (var prereq in milestone.Prerequisites.Where(p => p.IsMilestone))
+            {
+                if (!milestoneToGroup.TryGetValue(prereq.Id, out var prereqGroup)) continue;
+
+                var edge = new MilestoneEdge
+                {
+                    FromMilestone = prereq,
+                    ToMilestone = milestone,
+                    // From: right edge of prereq group, vertical center
+                    FromX = prereqGroup.X + prereqGroup.Width,
+                    FromY = prereqGroup.Y + prereqGroup.Height / 2,
+                    // To: left edge of successor group, vertical center
+                    ToX = group.X,
+                    ToY = group.Y + group.Height / 2
+                };
+                _milestoneEdges.Add(edge);
+            }
         }
     }
 

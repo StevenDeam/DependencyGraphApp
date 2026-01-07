@@ -1,0 +1,28 @@
+Id,Title,Type,Discipline,PercentComplete,Weight,ParentId,PrereqId,TargetDate,IsNA,Level,Phase
+CCA1,CCA1 Integration,Milestone,System,,0,,,2026-01-15,false,,Phase 1
+CCA1_HW,CCA1 Hardware Task,Task,HW,100,2,CCA1,,,false,,
+CCA1_FW,CCA1 Firmware Task,Task,FW,50,3,CCA1,CCA1_HW,,false,,
+
+CCA2,CCA2 Integration,Milestone,System,,0,,,2026-01-15,false,,Phase 1
+CCA2_HW,CCA2 Hardware Task,Task,HW,100,2,CCA2,,,false,,
+CCA2_FW,CCA2 Firmware Task,Task,FW,25,3,CCA2,CCA2_HW,,false,,
+
+CCA3,CCA3 Integration,Milestone,System,,0,,,2026-01-15,false,,Phase 1
+CCA3_HW,CCA3 Hardware Task,Task,HW,75,2,CCA3,,,false,,
+CCA3_FW,CCA3 Firmware Task,Task,FW,0,3,CCA3,CCA3_HW,,false,,
+
+CCA4,CCA4 Integration,Milestone,System,,0,,,2026-01-15,false,,Phase 1
+CCA4_HW,CCA4 Hardware Task,Task,HW,50,2,CCA4,,,false,,
+CCA4_FW,CCA4 Firmware Task,Task,FW,0,3,CCA4,CCA4_HW,,false,,
+
+SubASM1,Sub Assembly 1,Milestone,System,,0,,"CCA1,CCA2",2026-02-05,false,,Phase 2
+SubASM1_INT,SubASM1 Integration Task,Task,System,0,3,SubASM1,,,false,,
+SubASM1_TEST,SubASM1 Test Task,Task,Test,0,2,SubASM1,SubASM1_INT,,false,,
+
+SubASM2,Sub Assembly 2,Milestone,System,,0,,"CCA3,CCA4",2026-02-05,false,,Phase 2
+SubASM2_INT,SubASM2 Integration Task,Task,System,0,3,SubASM2,,,false,,
+SubASM2_TEST,SubASM2 Test Task,Task,Test,0,2,SubASM2,SubASM2_INT,,false,,
+
+FinalASM,Final Assembly,Milestone,System,,0,,"SubASM1,SubASM2",2026-03-01,false,,Phase 3
+FinalASM_INT,Final Integration,Task,System,0,5,FinalASM,,,false,,
+FinalASM_TEST,Final System Test,Task,Test,0,3,FinalASM,FinalASM_INT,,false,,

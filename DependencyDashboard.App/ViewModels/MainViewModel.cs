@@ -25,6 +25,7 @@ public class MainViewModel : ViewModelBase
 
         WorkItems = new ObservableCollection<WorkItemViewModel>();
         ValidationErrors = new ObservableCollection<ValidationError>();
+        MilestoneEdges = new ObservableCollection<MilestoneEdgeViewModel>();
 
         OpenCommand = new RelayCommand(OpenFile);
         ReloadCommand = new RelayCommand(ReloadFile, () => _loadedFilePath != null);
@@ -32,6 +33,7 @@ public class MainViewModel : ViewModelBase
 
     public ObservableCollection<WorkItemViewModel> WorkItems { get; }
     public ObservableCollection<ValidationError> ValidationErrors { get; }
+    public ObservableCollection<MilestoneEdgeViewModel> MilestoneEdges { get; }
     public ObservableCollection<PhaseColumnViewModel> PhaseColumns => _phaseColumns;
 
     public ICommand OpenCommand { get; }
@@ -139,6 +141,13 @@ public class MainViewModel : ViewModelBase
             foreach (var phase in _service.GetPhaseColumns())
             {
                 _phaseColumns.Add(new PhaseColumnViewModel(phase));
+            }
+
+            // Build milestone edge view models for bracket rendering
+            MilestoneEdges.Clear();
+            foreach (var edge in _service.GetMilestoneEdges())
+            {
+                MilestoneEdges.Add(new MilestoneEdgeViewModel(edge));
             }
 
             IsLoaded = true;
